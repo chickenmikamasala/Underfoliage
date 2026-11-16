@@ -1,4 +1,4 @@
-# Typeset — local LaTeX editor
+# Underleaf — local LaTeX editor
 
 A split-pane LaTeX editor that runs on your own computer. Source on the left,
 the typeset PDF on the right, one **Compile** button (⌘↵ / Ctrl↵), a
@@ -76,7 +76,7 @@ python3 server.py
 
 Then open http://127.0.0.1:8765 in your browser. Keep the terminal open
 while you work; close it or press Ctrl+C to stop the editor. On a Mac you can
-instead double-click `Open Typeset.command`.
+instead double-click `Open Underleaf.command`.
 
 The first compile can take a minute while Tectonic downloads packages. Later
 compiles take about a second. A starter document is created in
@@ -84,7 +84,7 @@ compiles take about a second. A starter document is created in
 
 ### Your documents
 
-Click the document name next to **Typeset** in the top-left corner to open the
+Click the document name next to **Underleaf** in the top-left corner to open the
 document menu. One document is open at a time.
 
 - **New document**: type a name such as `chapter-2` and press **Create**. It
@@ -227,6 +227,7 @@ Keys are saved as `"<id>_api_key"` in `config.json`, and the model override as
   PDF, and runs the chat through the provider in `PROVIDERS`.
 - `index.html` — the editor page. CodeMirror shows the source and pdf.js
   shows the PDF; both load from cdnjs.
+- `assets/` — the leaf icon shown in the browser tab, in the sizes browsers ask for.
 - `examples/openai_compatible.py` — the OpenAI and DeepSeek provider example.
 - `requirements.txt` — Python packages for the chat.
 - `doc/` — your documents, one `.tex` file each. `build/<name>/` holds each

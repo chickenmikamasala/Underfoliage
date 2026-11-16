@@ -40,9 +40,11 @@ STATE = os.path.join(DOC_DIR, ".typeset-state.json")   # which document is open
 DEFAULT_DOC = "main.tex"
 DOC_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,79}\.tex$")
 INDEX = os.path.join(ROOT, "index.html")
+ASSETS_DIR = os.path.join(ROOT, "assets")
+ASSET_TYPES = {".png": "image/png", ".ico": "image/x-icon", ".svg": "image/svg+xml"}
 CONFIG = os.path.join(ROOT, "config.json")   # holds the API key; never commit it
 
-CHAT_SYSTEM = """You are the editing assistant inside Typeset, a LaTeX editor. The user's open document
+CHAT_SYSTEM = """You are the editing assistant inside Underleaf, a LaTeX editor. The user's open document
 is named below, followed by its complete current content. The user sees it in an editor beside
 this chat, and the PDF compiled from it.
 
@@ -752,7 +754,7 @@ def tool_summary(name, inp):
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "LaTeXEditor/1.0"
+    server_version = "Underleaf/1.0"
 
     def log_message(self, fmt, *args):
         line = fmt % args
@@ -821,6 +823,14 @@ class Handler(BaseHTTPRequestHandler):
                             "model": cfg["model"], "sdk": sdk_available(p) if p else True,
                             "package": PROVIDERS[p]["package"] if p else None,
                             "providers": [{"id": k, "name": v["name"]} for k, v in PROVIDERS.items()]})
+        elif path == "/favicon.ico" or path.startswith("/assets/"):
+            fname = "favicon.ico" if path == "/favicon.ico" else path[len("/assets/"):]
+            ext = os.path.splitext(fname)[1].lower()
+            # Only plain file names directly inside assets/ with an image type; nothing else is served.
+            if "/" in fname or "\\" in fname or fname.startswith(".") or ext not in ASSET_TYPES:
+                self.send_json({"error": "not found"}, 404)
+            else:
+                self.send_file(os.path.join(ASSETS_DIR, fname), ASSET_TYPES[ext])
         elif path == "/pdf":
             self.send_file(pdf_file(current_name()), "application/pdf")
         elif path == "/download/pdf":
@@ -918,14 +928,14 @@ def main():
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8765
     name = current_name()  # creates doc/main.tex on first run
     eng = detect_engine()
-    print(f"LaTeX editor: http://127.0.0.1:{port}", flush=True)
+    print(f"Underleaf:    http://127.0.0.1:{port}", flush=True)
     print(f"Documents:    {DOC_DIR}  (open: {name})")
     print(f"Engine:       {eng[0] if eng else 'none found (install tectonic or MacTeX)'}", flush=True)
     try:
         srv = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     except OSError as e:
         if getattr(e, "errno", None) in (48, 98):  # address already in use
-            print(f"Typeset is already running on http://127.0.0.1:{port} -- open that in your browser.",
+            print(f"Underleaf is already running on http://127.0.0.1:{port} -- open that in your browser.",
                   flush=True)
             print(f"To run a second copy use another port:  python3 server.py {port + 1}", flush=True)
             sys.exit(0)

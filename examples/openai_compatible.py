@@ -1,4 +1,4 @@
-"""Example: add OpenAI, DeepSeek or any other OpenAI-compatible API to Typeset's chat.
+"""Example: add OpenAI, DeepSeek or any other OpenAI-compatible API to Underleaf's chat.
 
 How to use it (details in README.md, "Adding another AI provider"):
   1. python3 -m pip install openai

@@ -1,0 +1,10 @@
+# Never share these
+config.json
+config.json.tmp
+doc/
+
+# Machine-specific or generated
+bin/
+build/
+__pycache__/
+.DS_Store

@@ -1,0 +1,769 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Typeset</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+<style>
+/* Layout: one-screen app. Header bar, then a two-pane split (source | PDF) with a draggable divider; stacks into tabs on phones. */
+:root {
+  --bg: #f3f2ee;           /* chrome */
+  --panel: #ffffff;        /* editor surface */
+  --well: #e4e2db;         /* pdf well behind pages */
+  --fg: #1d1c1a;
+  --muted: #6d6a62;
+  --line: #d9d6cd;
+  --accent: #2f52c7;       /* cobalt: buttons, commands */
+  --accent-fg: #ffffff;
+  --accent-soft: #e3e9fb;
+  --ok: #1f7a3f;
+  --warn: #9a6b00;
+  --err: #b4231d;
+  --err-soft: #fbe6e4;
+  --sel: #d7e0fb;
+  --cm-keyword: #8a3fb0;
+  --cm-comment: #8a877e;
+  --cm-bracket: #5a5750;
+  --cm-number: #0b6e73;
+  --cm-string: #0b6e73;
+  --font-ui: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+  --header-h: 52px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1c1d21; --panel: #202126; --well: #15161a; --fg: #e9e7e1; --muted: #9b9890;
+    --line: #34363d; --accent: #7a98ff; --accent-fg: #0f1a3a; --accent-soft: #273152;
+    --ok: #5fcf85; --warn: #e4b658; --err: #ff7b72; --err-soft: #3b2224; --sel: #2c3a66;
+    --cm-keyword: #d49cf0; --cm-comment: #7d7a73; --cm-bracket: #b3b0a8; --cm-number: #6fd3d8; --cm-string: #6fd3d8;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--font-ui); font-size: 14px;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+button { font: inherit; color: inherit; }
+button:focus-visible, [tabindex]:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* header */
+header {
+  height: var(--header-h); flex: 0 0 auto; display: flex; align-items: center; gap: 12px;
+  padding: 0 16px; border-bottom: 1px solid var(--line); background: var(--bg);
+}
+.brand { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.brand h1 { font-size: 15px; font-weight: 600; margin: 0; letter-spacing: 0.01em; }
+.path { font-family: var(--font-mono); font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 38vw; }
+/* File menu */
+.docmenu { position: relative; min-width: 0; }
+.docbtn { display: inline-flex; align-items: center; gap: 6px; max-width: 40vw; border: 1px solid transparent; background: none; border-radius: 6px; padding: 4px 8px; cursor: pointer; font-family: var(--font-mono); font-size: 12.5px; color: var(--fg); }
+.docbtn:hover, .docbtn[aria-expanded="true"] { border-color: var(--line); background: var(--panel); }
+.docbtn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.docbtn svg { flex: 0 0 auto; color: var(--muted); }
+.docpanel { position: absolute; top: calc(100% + 6px); left: 0; z-index: 20; width: 340px; max-width: calc(100vw - 32px); background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 12px 32px rgba(0,0,0,.18); padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.docpanel[hidden] { display: none; }
+.docpanel .dphead { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding: 2px 4px 0; }
+.newdoc { display: flex; gap: 6px; }
+.newdoc input { flex: 1 1 auto; min-width: 0; font: inherit; font-size: 13px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); }
+.newdoc .btn { padding: 5px 10px; }
+.docpanel .err { color: var(--err); font-size: 12.5px; }
+.docpanel .err:empty { display: none; }
+#docList { list-style: none; margin: 0; padding: 0; max-height: 320px; overflow: auto; display: flex; flex-direction: column; gap: 2px; }
+#docList button { width: 100%; text-align: left; background: none; border: 0; border-radius: 6px; padding: 7px 8px; cursor: pointer; display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; color: var(--fg); }
+#docList button:hover { background: var(--accent-soft); }
+#docList button[aria-current="true"] { background: var(--accent-soft); }
+#docList .dn { font-family: var(--font-mono); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#docList .dt { grid-column: 1 / -1; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#docList .dm { font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.docpanel .dpfoot { font-size: 11.5px; color: var(--muted); border-top: 1px solid var(--line); padding: 8px 4px 0; overflow-wrap: anywhere; }
+.docpanel .dpfoot code { font-family: var(--font-mono); }
+.spacer { flex: 1; }
+.status { font-size: 12.5px; color: var(--muted); display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.status .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.status.ok .dot { background: var(--ok); } .status.err .dot { background: var(--err); } .status.busy .dot { background: var(--accent); animation: pulse 1s infinite; }
+@keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: .3 } }
+@media (prefers-reduced-motion: reduce) { .status.busy .dot { animation: none; } }
+.toggle { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); cursor: pointer; user-select: none; }
+.toggle input { accent-color: var(--accent); margin: 0; }
+.btn { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; padding: 6px 10px; cursor: pointer; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; }
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); font-weight: 600; padding: 7px 14px; }
+.btn.primary:hover { filter: brightness(1.07); }
+.btn.primary:disabled { opacity: .6; cursor: progress; }
+.btn kbd { font-family: var(--font-ui); font-size: 11px; opacity: .75; border: 1px solid currentColor; border-radius: 4px; padding: 0 4px; }
+
+/* split */
+main { flex: 1 1 auto; min-height: 0; display: flex; }
+.pane { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+#editorPane { flex: 0 0 var(--split, 50%); background: var(--panel); }
+#divider { flex: 0 0 6px; cursor: col-resize; background: var(--bg); border-left: 1px solid var(--line); border-right: 1px solid var(--line); }
+#divider:hover, #divider.active { background: var(--accent-soft); }
+#previewPane { flex: 1 1 auto; background: var(--well); position: relative; }
+
+/* editor */
+#editorPane .CodeMirror { flex: 1 1 auto; height: auto; min-height: 0; font-family: var(--font-mono); font-size: 13.5px; line-height: 1.55; background: var(--panel); color: var(--fg); }
+.CodeMirror-gutters { background: var(--panel); border-right: 1px solid var(--line); }
+.CodeMirror-linenumber { color: var(--muted); opacity: .7; }
+.CodeMirror-cursor { border-left: 2px solid var(--fg); }
+.CodeMirror-selected, .CodeMirror-focused .CodeMirror-selected { background: var(--sel); }
+.CodeMirror-activeline-background { background: color-mix(in srgb, var(--fg) 4%, transparent); }
+.CodeMirror-matchingbracket { color: var(--accent) !important; font-weight: 600; text-decoration: none; }
+.cm-s-typeset .cm-tag { color: var(--accent); }
+.cm-s-typeset .cm-keyword { color: var(--cm-keyword); font-weight: 500; }
+.cm-s-typeset .cm-bracket { color: var(--cm-bracket); }
+.cm-s-typeset .cm-comment { color: var(--cm-comment); font-style: italic; }
+.cm-s-typeset .cm-number, .cm-s-typeset .cm-atom { color: var(--cm-number); }
+.cm-s-typeset .cm-string { color: var(--cm-string); }
+.cm-s-typeset .cm-variable-2 { color: var(--warn); }
+.cm-s-typeset .cm-error { text-decoration: underline wavy var(--err); }
+.line-error { background: var(--err-soft); }
+.gutter-error { color: var(--err); font-weight: 700; padding-left: 2px; }
+
+/* problems strip */
+#problems { flex: 0 0 auto; max-height: 38%; overflow: auto; border-top: 1px solid var(--line); background: var(--panel); font-size: 12.5px; }
+#problems[hidden] { display: none; }
+#problems .ph { display: flex; align-items: center; gap: 10px; padding: 6px 12px; color: var(--muted); position: sticky; top: 0; background: var(--panel); border-bottom: 1px solid var(--line); }
+#problems .ph b { color: var(--fg); font-weight: 600; }
+#problems .ph button { margin-left: auto; background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 12px; }
+#problems ul { list-style: none; margin: 0; padding: 4px 0; }
+#problems li { display: grid; grid-template-columns: 70px 1fr; gap: 10px; padding: 5px 12px; cursor: pointer; font-family: var(--font-mono); font-size: 12px; }
+#problems li:hover { background: var(--accent-soft); }
+#problems li.warn { color: var(--muted); }
+#problems li .ln { color: var(--err); font-weight: 600; }
+#problems li.warn .ln { color: var(--warn); }
+#problems pre { margin: 0; padding: 10px 12px; font-family: var(--font-mono); font-size: 11.5px; white-space: pre-wrap; color: var(--muted); border-top: 1px solid var(--line); max-height: 240px; overflow: auto; }
+
+/* chat drawer (Ask Claude) */
+#chat { flex: 0 0 42%; min-height: 0; display: none; flex-direction: column; border-top: 1px solid var(--line); background: var(--panel); }
+#chat.open { display: flex; }
+#chat .ch { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-bottom: 1px solid var(--line); font-size: 12.5px; color: var(--muted); }
+#chat .ch b { color: var(--fg); font-weight: 600; }
+#chat .ch .model { font-family: var(--font-mono); font-size: 11px; }
+#chat .ch button { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 12px; }
+#chat .ch button:first-of-type { margin-left: auto; }
+#chat .ch button[hidden] { display: none; }
+#chatLog { flex: 1 1 auto; overflow: auto; padding: 10px 12px; display: flex; flex-direction: column; gap: 10px; font-size: 13.5px; line-height: 1.5; }
+#chatLog .msg { max-width: 92%; white-space: pre-wrap; overflow-wrap: anywhere; border-radius: 10px; padding: 7px 11px; }
+#chatLog .msg.user { align-self: flex-end; background: var(--accent-soft); }
+#chatLog .msg.assistant { align-self: flex-start; background: color-mix(in srgb, var(--fg) 5%, transparent); }
+#chatLog .msg.error { align-self: stretch; background: var(--err-soft); color: var(--err); }
+#chatLog .act { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); font-family: var(--font-mono); padding: 2px 8px; border: 1px solid var(--line); border-radius: 999px; }
+#chatLog .act.ok { color: var(--ok); } #chatLog .act.bad { color: var(--err); }
+#chatLog .thinking { color: var(--muted); font-size: 12.5px; }
+#chatLog .thinking::after { content: '…'; animation: pulse 1s infinite; }
+#chatForm { display: flex; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--line); }
+#chatForm[hidden] { display: none; }
+#chatInput { flex: 1 1 auto; resize: none; min-height: 40px; max-height: 140px; font: inherit; font-size: 13.5px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); }
+#chatKey { padding: 14px 12px; display: none; flex-direction: column; gap: 8px; font-size: 13px; }
+#chatKey.show { display: flex; }
+#chatKey p { margin: 0; color: var(--muted); line-height: 1.5; }
+#chatKey input { font: inherit; font-family: var(--font-mono); font-size: 12.5px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); }
+#chatKey .row { display: flex; gap: 8px; align-items: center; }
+#chatKey .err { color: var(--err); }
+#chatKey .ok { color: var(--muted); }
+#chatKey .row { flex-wrap: wrap; }
+#chatKey input { flex: 1 1 200px; min-width: 0; }
+#chatKey select { font: inherit; font-size: 12.5px; padding: 7px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--fg); }
+
+/* banner for external changes */
+#banner { display: none; align-items: center; gap: 10px; padding: 8px 12px; background: var(--accent-soft); border-bottom: 1px solid var(--line); font-size: 13px; }
+#banner.show { display: flex; }
+
+/* preview */
+.ptools { height: 38px; flex: 0 0 auto; display: flex; align-items: center; gap: 8px; padding: 0 12px; border-bottom: 1px solid var(--line); background: var(--bg); font-size: 12.5px; color: var(--muted); }
+.ptools .sep { width: 1px; height: 18px; background: var(--line); }
+.ptools .btn { padding: 3px 8px; font-size: 12px; }
+.ptools .engine { font-family: var(--font-mono); font-size: 11.5px; }
+.ptools a.btn { text-decoration: none; color: var(--fg); font-weight: 500; }
+.ptools a.btn[aria-disabled="true"] { opacity: .45; pointer-events: none; }
+@media (max-width: 520px) { .ptools .engine { display: none; } }
+#pages { flex: 1 1 auto; overflow: auto; padding: 24px 16px; display: flex; flex-direction: column; align-items: center; gap: 18px; }
+#pages canvas { background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.18), 0 8px 24px rgba(0,0,0,.10); display: block; max-width: 100%; }
+#pages.stale canvas { opacity: .45; }
+#empty { margin: auto; text-align: center; color: var(--muted); max-width: 32ch; line-height: 1.5; }
+#empty b { color: var(--fg); display: block; font-size: 15px; margin-bottom: 6px; }
+#perr { position: absolute; left: 16px; right: 16px; top: 50px; background: var(--err-soft); color: var(--err); border: 1px solid var(--err); border-radius: 8px; padding: 10px 14px; font-size: 13px; display: none; z-index: 2; }
+#perr.show { display: block; }
+
+/* toast */
+#toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 8px 14px; border-radius: 8px; font-size: 13px; opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 5; }
+#toast.show { opacity: 1; }
+
+/* phone layout: tabs */
+.tabs { display: none; }
+@media (max-width: 820px) {
+  header { gap: 8px; padding: 0 12px; }
+  .path, .toggle, .status .txt { display: none; }
+  .tabs { display: flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+  .tabs button { border: 0; background: var(--panel); padding: 6px 10px; font-size: 13px; cursor: pointer; }
+  .tabs button.on { background: var(--accent); color: var(--accent-fg); }
+  #divider { display: none; }
+  #editorPane { flex: 1 1 auto; }
+  body[data-view="preview"] #editorPane { display: none; }
+  body[data-view="editor"] #previewPane { display: none; }
+}
+</style>
+</head>
+<body data-view="editor">
+<header>
+  <div class="brand">
+    <h1>Typeset</h1>
+    <div class="docmenu">
+      <button type="button" class="docbtn" id="docBtn" aria-haspopup="true" aria-expanded="false" title="Open or create a document">
+        <span id="docName">main.tex</span>
+        <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <div class="docpanel" id="docPanel" hidden>
+        <div class="dphead">New document</div>
+        <form class="newdoc" id="newDocForm">
+          <input id="newDocName" placeholder="Name, e.g. chapter-2" autocomplete="off" spellcheck="false" aria-label="New document name">
+          <button type="submit" class="btn primary">Create</button>
+        </form>
+        <span class="err" id="docErr" role="alert"></span>
+        <div class="dphead">Open</div>
+        <ul id="docList"></ul>
+        <div class="dpfoot">Saved as <code>.tex</code> files in <code id="docFolder">doc/</code>. Files you copy into that folder appear here too.</div>
+      </div>
+    </div>
+  </div>
+  <div class="tabs" role="tablist">
+    <button type="button" class="on" data-view="editor" role="tab">Source</button>
+    <button type="button" data-view="preview" role="tab">PDF</button>
+  </div>
+  <div class="spacer"></div>
+  <div class="status" id="status"><span class="dot"></span><span class="txt">Loading</span></div>
+  <label class="toggle" title="Compile automatically about a second after you stop typing. Edits made on disk by Claude always recompile."><input type="checkbox" id="autoCompile"> Auto-compile</label>
+  <button type="button" class="btn" id="chatToggle" aria-pressed="false">Ask AI</button>
+  <button type="button" class="btn primary" id="compileBtn">Compile <kbd id="kbdHint">⌘↵</kbd></button>
+</header>
+
+<main>
+  <section class="pane" id="editorPane" aria-label="LaTeX source">
+    <div id="banner" role="status">
+      <span id="bannerText">This document changed on disk while you have unsaved edits.</span>
+      <button type="button" class="btn" id="loadDisk">Load disk version</button>
+      <button type="button" class="btn" id="keepMine">Keep mine</button>
+    </div>
+    <textarea id="src" aria-label="LaTeX source"></textarea>
+    <div id="problems" hidden>
+      <div class="ph"><b id="probTitle">Problems</b><span id="probSub"></span><button type="button" id="logToggle">Show log</button><button type="button" id="probClose" aria-label="Hide problems">✕</button></div>
+      <ul id="probList"></ul>
+      <pre id="logText" hidden></pre>
+    </div>
+    <div id="chat" aria-label="Ask AI">
+      <div class="ch"><b id="chatProvider">Assistant</b><span class="model" id="chatModel"></span><button type="button" id="chatChangeKey">Change key</button><button type="button" id="chatClear">Clear</button><button type="button" id="chatClose" aria-label="Close chat">✕</button></div>
+      <div id="chatKey">
+        <p>Paste an API key. Gemini keys start with <code>AQ.</code> (older ones <code>AIza</code>) and Claude keys with <code>sk-ant-</code>; for anything else, choose the provider from the menu. The key is checked with its provider before it is saved. It is stored only in <code>config.json</code> next to the server and is sent only to that provider's API.</p>
+        <div class="row"><select id="keyProvider" aria-label="Provider"><option value="">Detect provider</option></select><input type="password" id="keyInput" placeholder="AQ.… or sk-ant-…" autocomplete="off" spellcheck="false"><button type="button" class="btn primary" id="keySave">Save key</button></div>
+        <span class="err" id="keyErr" role="alert"></span><span class="ok" id="keyNote" role="status"></span>
+      </div>
+      <div id="chatLog" role="log" aria-live="polite"></div>
+      <form id="chatForm">
+        <textarea id="chatInput" rows="1" placeholder="Ask for a change, e.g. add a table of contents after the title"></textarea>
+        <button type="submit" class="btn primary" id="chatSend">Send</button>
+      </form>
+    </div>
+  </section>
+  <div id="divider" role="separator" aria-orientation="vertical" aria-label="Resize panes" tabindex="0"></div>
+  <section class="pane" id="previewPane" aria-label="Compiled PDF">
+    <div class="ptools">
+      <button type="button" class="btn" id="zoomOut" aria-label="Zoom out">−</button>
+      <span id="zoomLabel">Fit width</span>
+      <button type="button" class="btn" id="zoomIn" aria-label="Zoom in">+</button>
+      <button type="button" class="btn" id="zoomFit">Fit</button>
+      <span class="sep"></span>
+      <span id="pageInfo"></span>
+      <span class="spacer"></span>
+      <span class="engine" id="engine"></span>
+      <a class="btn" id="downloadPdf" href="/download/pdf" download aria-disabled="true" title="Download the compiled PDF">
+        <svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5v8.2m0 0L4.8 6.5M8 9.7l3.2-3.2M2.5 11v2.5h11V11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Download PDF
+      </a>
+    </div>
+    <div id="perr" role="alert"></div>
+    <div id="pages">
+      <div id="empty"><b>No PDF yet</b>Press Compile to typeset the document. The PDF renders here and refreshes after every compile.</div>
+    </div>
+  </section>
+</main>
+<div id="toast" role="status"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/stex/stex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/selection/active-line.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
+  $('kbdHint').textContent = isMac ? '⌘↵' : 'Ctrl↵';
+
+  // ---------- editor ----------
+  const cm = CodeMirror.fromTextArea($('src'), {
+    mode: 'stex', theme: 'typeset', lineNumbers: true, lineWrapping: true,
+    matchBrackets: true, autoCloseBrackets: '{}[]()', styleActiveLine: true,
+    indentUnit: 2, tabSize: 2, indentWithTabs: false,
+    gutters: ['CodeMirror-linenumbers', 'errors'],
+    extraKeys: {
+      'Cmd-Enter': () => compile(), 'Ctrl-Enter': () => compile(),
+      'Cmd-S': () => save(true), 'Ctrl-S': () => save(true),
+      'Tab': (c) => c.somethingSelected() ? c.indentSelection('add') : c.replaceSelection('  ', 'end'),
+    },
+  });
+
+  let currentDoc = null;     // name of the open document, e.g. "main.tex"
+  let lastSaved = null;      // text as last read from / written to disk
+  let lastMtime = 0;         // mtime of that text
+  let pendingDisk = null;    // {source, mtime} seen on disk while dirty
+  let saveTimer = null, autoTimer = null, saving = false, compiling = false;
+  let engineName = null;
+
+  const isDirty = () => lastSaved !== null && cm.getValue() !== lastSaved;
+
+  function setStatus(kind, text) {
+    const el = $('status'); el.className = 'status ' + kind; el.querySelector('.txt').textContent = text;
+  }
+  let toastTimer;
+  function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2600); }
+
+  async function api(method, url, body) {
+    const r = await fetch(url, { method, headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined, cache: 'no-store' });
+    if (!r.ok) throw new Error(method + ' ' + url + ' → ' + r.status);
+    return r.json();
+  }
+
+  // Replace the whole buffer while keeping cursor and scroll where they were.
+  function replaceText(text) {
+    const cur = cm.getCursor(), scroll = cm.getScrollInfo();
+    cm.operation(() => {
+      cm.replaceRange(text, { line: 0, ch: 0 }, { line: cm.lastLine(), ch: cm.getLine(cm.lastLine()).length }, 'disk');
+    });
+    cm.setCursor(Math.min(cur.line, cm.lastLine()), cur.ch);
+    cm.scrollTo(scroll.left, scroll.top);
+  }
+
+  async function save(manual) {
+    if (saving || lastSaved === null) return;
+    const text = cm.getValue();
+    if (text === lastSaved) { if (manual) setStatus('ok', 'Saved'); return; }
+    if (pendingDisk) return; // never overwrite a disk change the user hasn't resolved
+    saving = true;
+    try {
+      const r = await api('PUT', '/api/doc', { source: text, name: currentDoc });
+      lastSaved = text; lastMtime = r.mtime;
+      if (!compiling) setStatus('ok', 'Saved');
+    } catch (e) { setStatus('err', 'Save failed'); console.error(e); }
+    finally { saving = false; }
+  }
+
+  cm.on('change', (_c, ch) => {
+    if (ch.origin === 'disk' || ch.origin === 'setValue') return;
+    setStatus('', 'Unsaved');
+    clearTimeout(saveTimer); saveTimer = setTimeout(() => save(false), 900);
+    if ($('autoCompile').checked) { clearTimeout(autoTimer); autoTimer = setTimeout(() => compile(), 1300); }
+  });
+
+  // ---------- disk watch (picks up Claude's edits) ----------
+  async function poll() {
+    try {
+      const d = await api('GET', '/api/doc');
+      if (currentDoc && d.name !== currentDoc) {          // another tab opened a different document
+        if (!isDirty() && !switching) { await showDoc(d); toast('Opened ' + d.name); }
+        return;
+      }
+      if (d.mtime > lastMtime + 0.0005 && d.source !== lastSaved) {
+        if (!isDirty()) {
+          replaceText(d.source); lastSaved = d.source; lastMtime = d.mtime;
+          hideBanner(); toast(d.name + ' updated on disk'); compile();
+        } else {
+          pendingDisk = d; showBanner();
+        }
+      }
+    } catch (e) { /* server away; try again next tick */ }
+  }
+  function showBanner() { $('banner').classList.add('show'); }
+  function hideBanner() { $('banner').classList.remove('show'); }
+  $('loadDisk').onclick = () => {
+    if (!pendingDisk) return hideBanner();
+    replaceText(pendingDisk.source); lastSaved = pendingDisk.source; lastMtime = pendingDisk.mtime; pendingDisk = null;
+    hideBanner(); compile();
+  };
+  $('keepMine').onclick = () => { if (pendingDisk) { lastMtime = pendingDisk.mtime; pendingDisk = null; } hideBanner(); save(true); };
+  setInterval(poll, 1500);
+
+  // ---------- compile ----------
+  let errorLines = [];
+  function clearMarks() {
+    errorLines.forEach((ln) => { cm.removeLineClass(ln, 'background', 'line-error'); cm.setGutterMarker(ln, 'errors', null); });
+    errorLines = [];
+  }
+  function markErrors(errors) {
+    clearMarks();
+    errors.forEach((e) => {
+      if (!e.line || e.line > cm.lineCount()) return;
+      const ln = e.line - 1;
+      cm.addLineClass(ln, 'background', 'line-error');
+      const m = document.createElement('span'); m.className = 'gutter-error'; m.textContent = '●'; m.title = e.message;
+      cm.setGutterMarker(ln, 'errors', m); errorLines.push(ln);
+    });
+  }
+  function showProblems(res) {
+    const errs = res.errors || [], warns = res.warnings || [];
+    const box = $('problems'), list = $('probList');
+    list.innerHTML = '';
+    if (!errs.length && !warns.length) { box.hidden = true; return; }
+    $('probTitle').textContent = errs.length ? `${errs.length} error${errs.length > 1 ? 's' : ''}` : 'Compiled with warnings';
+    $('probSub').textContent = warns.length ? `${warns.length} warning${warns.length > 1 ? 's' : ''}` : '';
+    errs.concat(warns.map((w) => Object.assign({ warn: true }, w))).forEach((e) => {
+      const li = document.createElement('li'); if (e.warn) li.className = 'warn';
+      const ln = document.createElement('span'); ln.className = 'ln'; ln.textContent = e.line ? 'line ' + e.line : (e.warn ? 'warning' : 'error');
+      const msg = document.createElement('span'); msg.textContent = e.message;
+      li.append(ln, msg);
+      if (e.line) li.onclick = () => { cm.setCursor(e.line - 1, 0); cm.scrollIntoView({ line: e.line - 1, ch: 0 }, 120); cm.focus(); if (window.innerWidth <= 820) setView('editor'); };
+      list.appendChild(li);
+    });
+    $('logText').textContent = res.log || '';
+    box.hidden = false;
+  }
+  $('probClose').onclick = () => { $('problems').hidden = true; };
+  $('logToggle').onclick = () => { const p = $('logText'); p.hidden = !p.hidden; $('logToggle').textContent = p.hidden ? 'Show log' : 'Hide log'; };
+
+  async function compile() {
+    if (compiling) return;
+    compiling = true; clearTimeout(saveTimer); clearTimeout(autoTimer);
+    const text = cm.getValue();
+    $('compileBtn').disabled = true; setStatus('busy', 'Compiling');
+    try {
+      const forDoc = currentDoc;
+      const res = await api('POST', '/api/compile', pendingDisk ? { name: forDoc } : { source: text, name: forDoc });
+      if (res.name && res.name !== currentDoc) return;   // a different document was opened meanwhile
+      if (!pendingDisk) { lastSaved = text; lastMtime = res.mtime || lastMtime; }
+      if (res.engine) { engineName = res.engine; $('engine').textContent = res.engine; }
+      markErrors(res.errors || []);
+      showProblems(res);
+      if (res.ok) {
+        setStatus('ok', `Compiled in ${res.duration}s`);
+        $('perr').classList.remove('show');
+        await renderPdf('/pdf?t=' + res.pdf_mtime);
+      } else {
+        const first = (res.errors || [])[0];
+        setStatus('err', first && first.line ? `Error on line ${first.line}` : 'Compile failed');
+        $('perr').textContent = first ? (first.line ? `Line ${first.line}: ` : '') + first.message : 'Compilation failed. See the log below the editor.';
+        $('perr').classList.add('show'); $('pages').classList.add('stale');
+        if (pdfDoc) setDownload(true, true);
+      }
+    } catch (e) {
+      setStatus('err', 'Server unreachable'); console.error(e);
+      $('perr').textContent = 'Could not reach the local server. Is server.py still running?'; $('perr').classList.add('show');
+    } finally { compiling = false; $('compileBtn').disabled = false; }
+  }
+  $('compileBtn').onclick = () => compile();
+
+  // ---------- PDF rendering ----------
+  const pdfjs = window.pdfjsLib;
+  let pdfDoc = null, zoom = 'fit', renderToken = 0;
+  async function setupWorker() {
+    const url = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    try { const code = await (await fetch(url)).text(); pdfjs.GlobalWorkerOptions.workerSrc = URL.createObjectURL(new Blob([code], { type: 'text/javascript' })); }
+    catch (e) { pdfjs.GlobalWorkerOptions.workerSrc = url; }
+  }
+  const workerReady = setupWorker();
+
+  function setDownload(enabled, stale) {
+    const a = $('downloadPdf');
+    a.setAttribute('aria-disabled', enabled ? 'false' : 'true');
+    a.title = !enabled ? 'Compile the document first' :
+      stale ? 'Download the last PDF that compiled (the latest edits have errors)' : 'Download the compiled PDF';
+  }
+  async function renderPdf(url) {
+    await workerReady;
+    const pages = $('pages');
+    const ratio = pages.scrollHeight > 0 ? pages.scrollTop / pages.scrollHeight : 0;
+    try {
+      const doc = await pdfjs.getDocument({ url }).promise;
+      if (pdfDoc) pdfDoc.destroy();
+      pdfDoc = doc;
+    } catch (e) { console.error(e); $('perr').textContent = 'The PDF could not be opened: ' + e.message; $('perr').classList.add('show'); return; }
+    await drawPages();
+    pages.classList.remove('stale');
+    pages.scrollTop = ratio * pages.scrollHeight;
+  }
+  async function drawPages() {
+    if (!pdfDoc) return;
+    const token = ++renderToken, pages = $('pages');
+    const dpr = window.devicePixelRatio || 1;
+    const avail = pages.clientWidth - 32;
+    const canvases = [];
+    for (let i = 1; i <= pdfDoc.numPages; i++) {
+      const page = await pdfDoc.getPage(i);
+      if (token !== renderToken) return;
+      const base = page.getViewport({ scale: 1 });
+      const scale = zoom === 'fit' ? Math.min(avail / base.width, 2.2) : zoom;
+      const vp = page.getViewport({ scale });
+      const c = document.createElement('canvas');
+      c.width = Math.floor(vp.width * dpr); c.height = Math.floor(vp.height * dpr);
+      c.style.width = Math.floor(vp.width) + 'px'; c.style.height = Math.floor(vp.height) + 'px';
+      c.setAttribute('aria-label', 'Page ' + i);
+      const ctx = c.getContext('2d'); ctx.scale(dpr, dpr);
+      await page.render({ canvasContext: ctx, viewport: vp }).promise;
+      if (token !== renderToken) return;
+      canvases.push(c);
+    }
+    pages.replaceChildren(...canvases);
+    $('pageInfo').textContent = pdfDoc.numPages + (pdfDoc.numPages === 1 ? ' page' : ' pages');
+    setDownload(true, false);
+    $('zoomLabel').textContent = zoom === 'fit' ? 'Fit width' : Math.round(zoom * 100) + '%';
+  }
+  $('zoomIn').onclick = () => { zoom = Math.min(3, (zoom === 'fit' ? fitScale() : zoom) + 0.15); drawPages(); };
+  $('zoomOut').onclick = () => { zoom = Math.max(0.3, (zoom === 'fit' ? fitScale() : zoom) - 0.15); drawPages(); };
+  $('zoomFit').onclick = () => { zoom = 'fit'; drawPages(); };
+  function fitScale() { const c = $('pages').querySelector('canvas'); return c ? parseFloat(c.style.width) / 612 : 1; }
+  let resizeT; window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(() => { if (zoom === 'fit') drawPages(); cm.refresh(); }, 150); });
+
+  // ---------- divider ----------
+  const divider = $('divider');
+  try { const s = localStorage.getItem('typeset.split'); if (s) document.documentElement.style.setProperty('--split', s); } catch (e) {}
+  divider.addEventListener('pointerdown', (e) => {
+    divider.setPointerCapture(e.pointerId); divider.classList.add('active');
+    const move = (ev) => {
+      const rect = document.querySelector('main').getBoundingClientRect();
+      const pct = Math.min(80, Math.max(20, ((ev.clientX - rect.left) / rect.width) * 100));
+      document.documentElement.style.setProperty('--split', pct.toFixed(1) + '%');
+    };
+    const up = () => {
+      divider.classList.remove('active'); divider.removeEventListener('pointermove', move); divider.removeEventListener('pointerup', up);
+      try { localStorage.setItem('typeset.split', getComputedStyle(document.documentElement).getPropertyValue('--split').trim()); } catch (e) {}
+      cm.refresh(); if (zoom === 'fit') drawPages();
+    };
+    divider.addEventListener('pointermove', move); divider.addEventListener('pointerup', up);
+  });
+  divider.addEventListener('keydown', (e) => {
+    const cur = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--split')) || 50;
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { document.documentElement.style.setProperty('--split', (cur + (e.key === 'ArrowLeft' ? -2 : 2)) + '%'); cm.refresh(); e.preventDefault(); }
+  });
+
+  // ---------- phone tabs ----------
+  function setView(v) { document.body.dataset.view = v; document.querySelectorAll('.tabs button').forEach((b) => b.classList.toggle('on', b.dataset.view === v)); if (v === 'editor') cm.refresh(); else if (zoom === 'fit') drawPages(); }
+  document.querySelectorAll('.tabs button').forEach((b) => { b.onclick = () => setView(b.dataset.view); });
+
+  // ---------- Ask Claude ----------
+  const chat = $('chat'), chatLog = $('chatLog'), chatInput = $('chatInput');
+  let history = [];            // [{role, content}] plain-text turns sent back each time
+  let chatBusy = false, chatReady = false;
+  try { const h = JSON.parse(localStorage.getItem('typeset.chat') || '[]'); if (Array.isArray(h)) history = h; } catch (e) {}
+
+  function addMsg(role, text) {
+    const d = document.createElement('div'); d.className = 'msg ' + role; d.textContent = text; chatLog.appendChild(d); chatLog.scrollTop = chatLog.scrollHeight; return d;
+  }
+  function addAct(text, cls) {
+    const d = document.createElement('div'); d.className = 'act ' + (cls || ''); d.textContent = text; chatLog.appendChild(d); chatLog.scrollTop = chatLog.scrollHeight; return d;
+  }
+  function renderHistory() { chatLog.innerHTML = ''; history.forEach((m) => addMsg(m.role, m.content)); }
+  function saveHistory() { try { localStorage.setItem('typeset.chat', JSON.stringify(history.slice(-40))); } catch (e) {} }
+
+  async function chatStatus() {
+    try {
+      const st = await api('GET', '/api/chat/status');
+      chatReady = !!st.configured;
+      $('chatModel').textContent = st.model || '';
+      $('chatProvider').textContent = st.provider_name || 'Assistant';
+      $('chatChangeKey').hidden = !st.configured || st.source !== 'config.json';
+      $('chatKey').classList.toggle('show', !st.configured);
+      $('keyErr').textContent = '';
+      const sel = $('keyProvider');
+      if (Array.isArray(st.providers) && sel.options.length !== st.providers.length + 1) {
+        sel.length = 1;
+        st.providers.forEach((pv) => sel.add(new Option(pv.name, pv.id)));
+      }
+      if (st.configured && !st.sdk) {
+        const pkg = st.package || 'the provider package';
+        $('chatKey').classList.add('show'); chatReady = false;
+        $('keyErr').textContent = `The ${pkg} Python package is missing. Run: python3 -m pip install ${pkg}, then restart server.py.`;
+      }
+      $('chatForm').hidden = !chatReady;
+      return st;
+    } catch (e) { return null; }
+  }
+  function openChat(on) {
+    chat.classList.toggle('open', on); $('chatToggle').setAttribute('aria-pressed', String(on));
+    try { localStorage.setItem('typeset.chatOpen', on ? '1' : '0'); } catch (e) {}
+    cm.refresh();
+    if (on) { chatStatus(); if (chatReady) chatInput.focus(); }
+  }
+  $('chatToggle').onclick = () => openChat(!chat.classList.contains('open'));
+  $('chatClose').onclick = () => openChat(false);
+  $('chatClear').onclick = () => { history = []; saveHistory(); renderHistory(); };
+  $('chatChangeKey').onclick = () => { const k = $('chatKey'); k.classList.toggle('show'); if (k.classList.contains('show')) $('keyInput').focus(); };
+  $('keySave').onclick = async () => {
+    const key = $('keyInput').value.trim(); $('keyErr').textContent = ''; $('keyNote').textContent = '';
+    if (!key) { $('keyErr').textContent = 'Paste a key first.'; return; }
+    const btn = $('keySave'); btn.disabled = true; btn.textContent = 'Checking…';
+    try {
+      const r = await fetch('/api/chat/key', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key, provider: $('keyProvider').value || undefined }) });
+      let data = {}; try { data = await r.json(); } catch (e) {}
+      if (!r.ok || data.error) {
+        $('keyErr').textContent = data.error || ('The server refused the key (status ' + r.status + ').');
+        if (data.needs_provider) $('keyProvider').focus();
+        return;
+      }
+      $('keyInput').value = ''; $('keyProvider').value = '';
+      await chatStatus();
+      $('chatKey').classList.remove('show');
+      if (data.note) addMsg(data.verified === true && !/not found/.test(data.note) ? 'assistant' : 'error', data.note);
+      chatInput.focus();
+    } catch (e) { $('keyErr').textContent = 'Could not reach the local server: ' + e.message; }
+    finally { btn.disabled = false; btn.textContent = 'Save key'; }
+  };
+  $('keyInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('keySave').click(); } });
+  chatInput.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('chatForm').requestSubmit(); } });
+  chatInput.addEventListener('input', () => { chatInput.style.height = 'auto'; chatInput.style.height = Math.min(140, chatInput.scrollHeight) + 'px'; });
+
+  $('chatForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const text = chatInput.value.trim();
+    if (!text || chatBusy) return;
+    chatInput.value = ''; chatInput.style.height = 'auto';
+    chatBusy = true; $('chatSend').disabled = true;
+    addMsg('user', text); history.push({ role: 'user', content: text }); saveHistory();
+    clearTimeout(saveTimer); await save(false);            // Claude must see what you typed
+    const thinking = document.createElement('div'); thinking.className = 'thinking'; thinking.textContent = ($('chatProvider').textContent || 'Assistant') + ' is working'; chatLog.appendChild(thinking);
+    let reply = '', edited = false;
+    try {
+      const r = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages: history, name: currentDoc }) });
+      if (!r.ok || !r.body) throw new Error('server returned ' + r.status);
+      const reader = r.body.getReader(), dec = new TextDecoder(); let buf = '';
+      while (true) {
+        const { value, done } = await reader.read(); if (done) break;
+        buf += dec.decode(value, { stream: true });
+        let i; while ((i = buf.indexOf('\n\n')) >= 0) {
+          const chunk = buf.slice(0, i); buf = buf.slice(i + 2);
+          const line = chunk.split('\n').find((l) => l.startsWith('data: ')); if (!line) continue;
+          let ev; try { ev = JSON.parse(line.slice(6)); } catch (err) { continue; }
+          if (ev.type === 'text' && ev.text) { reply += (reply ? '\n\n' : '') + ev.text; thinking.before(addMsg('assistant', ev.text)); }
+          else if (ev.type === 'tool') { const a = addAct(ev.summary); a.dataset.pending = '1'; thinking.before(a); if (ev.name !== 'read_document' && ev.name !== 'compile') edited = true; }
+          else if (ev.type === 'tool_result') { const a = chatLog.querySelector('.act[data-pending]'); if (a) { a.textContent = ev.summary; a.classList.add(ev.ok ? 'ok' : 'bad'); delete a.dataset.pending; } else thinking.before(addAct(ev.summary, ev.ok ? 'ok' : 'bad')); }
+          else if (ev.type === 'error') { thinking.before(addMsg('error', ev.message)); if (ev.auth) chatStatus(); }
+        }
+      }
+    } catch (err) { addMsg('error', 'Chat failed: ' + err.message); }
+    finally {
+      thinking.remove(); chatBusy = false; $('chatSend').disabled = false;
+      if (reply) { history.push({ role: 'assistant', content: reply }); saveHistory(); }
+      if (edited) poll();                                    // pull Claude's edits in right away
+      chatInput.focus();
+    }
+  });
+
+  // ---------- File menu: one document open at a time ----------
+  let switching = false;
+  function ago(t) {
+    const s = Math.max(0, Date.now() / 1000 - t);
+    if (s < 60) return 'just now';
+    if (s < 3600) return Math.floor(s / 60) + ' min ago';
+    if (s < 86400) return Math.floor(s / 3600) + ' h ago';
+    const d = new Date(t * 1000);
+    return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: d.getFullYear() === new Date().getFullYear() ? undefined : 'numeric' });
+  }
+  function resetPreview() {
+    renderToken++;
+    if (pdfDoc) { pdfDoc.destroy(); pdfDoc = null; }
+    const empty = document.createElement('div'); empty.id = 'empty';
+    const b = document.createElement('b'); b.textContent = 'No PDF yet';
+    empty.append(b, 'Press Compile to typeset this document.');
+    $('pages').replaceChildren(empty); $('pages').classList.remove('stale');
+    $('pageInfo').textContent = ''; setDownload(false);
+    $('perr').classList.remove('show'); $('problems').hidden = true; clearMarks();
+  }
+  // Put a document returned by the server into the editor and show its PDF.
+  async function showDoc(d) {
+    currentDoc = d.name;
+    $('docName').textContent = d.name; $('docBtn').title = d.path || d.name;
+    document.title = d.name.replace(/\.tex$/, '') + ' · Typeset';
+    pendingDisk = null; hideBanner();
+    cm.setValue(d.source); cm.clearHistory(); cm.setCursor(0, 0);
+    lastSaved = d.source; lastMtime = d.mtime;
+    resetPreview(); setStatus('ok', 'Saved');
+    try { const st = await api('GET', '/api/status'); if (st.name === d.name && st.pdf_mtime) await renderPdf('/pdf?t=' + st.pdf_mtime); } catch (e) {}
+    if (engineName) compile();
+  }
+  async function openDoc(name) {
+    if (switching || name === currentDoc) { closeDocMenu(); return; }
+    switching = true; $('docErr').textContent = '';
+    try {
+      clearTimeout(saveTimer); clearTimeout(autoTimer);
+      if (isDirty()) await save(true);                   // keep what you typed in the old document
+      if (isDirty() && !pendingDisk) { $('docErr').textContent = 'Could not save ' + currentDoc + ', so it stayed open.'; return; }
+      const r = await fetch('/api/docs/open', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
+      const d = await r.json();
+      if (!r.ok) { $('docErr').textContent = d.error || 'Could not open ' + name; refreshDocList(); return; }
+      closeDocMenu(); await showDoc(d); cm.focus();
+    } catch (e) { $('docErr').textContent = 'Could not reach the local server.'; }
+    finally { switching = false; }
+  }
+  async function refreshDocList() {
+    try {
+      const r = await api('GET', '/api/docs');
+      $('docFolder').textContent = r.folder.replace(/^.*\/([^/]+\/[^/]+)$/, '$1') + '/';
+      $('docFolder').title = r.folder;
+      const list = $('docList'); list.replaceChildren();
+      r.docs.forEach((doc) => {
+        const li = document.createElement('li'), b = document.createElement('button');
+        b.type = 'button';
+        if (doc.name === currentDoc) b.setAttribute('aria-current', 'true');
+        const n = document.createElement('span'); n.className = 'dn'; n.textContent = doc.name;
+        const m = document.createElement('span'); m.className = 'dm'; m.textContent = doc.name === currentDoc ? 'open' : ago(doc.modified);
+        b.append(n, m);
+        if (doc.title) { const t = document.createElement('span'); t.className = 'dt'; t.textContent = doc.title; b.append(t); }
+        b.onclick = () => openDoc(doc.name);
+        li.append(b); list.append(li);
+      });
+    } catch (e) { $('docErr').textContent = 'Could not list documents.'; }
+  }
+  function closeDocMenu() { $('docPanel').hidden = true; $('docBtn').setAttribute('aria-expanded', 'false'); }
+  $('docBtn').onclick = () => {
+    const open = $('docPanel').hidden;
+    if (!open) return closeDocMenu();
+    $('docPanel').hidden = false; $('docBtn').setAttribute('aria-expanded', 'true');
+    $('docErr').textContent = ''; refreshDocList(); $('newDocName').focus();
+  };
+  document.addEventListener('pointerdown', (e) => { if (!$('docPanel').hidden && !e.target.closest('.docmenu')) closeDocMenu(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('docPanel').hidden) { closeDocMenu(); $('docBtn').focus(); } });
+  $('newDocForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = $('newDocName').value.trim();
+    if (!name || switching) return;
+    switching = true; $('docErr').textContent = '';
+    try {
+      clearTimeout(saveTimer); clearTimeout(autoTimer);
+      if (isDirty()) await save(true);
+      const r = await fetch('/api/docs/new', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
+      const d = await r.json();
+      if (!r.ok) { $('docErr').textContent = d.error || 'Could not create the document.'; return; }
+      $('newDocName').value = ''; closeDocMenu(); await showDoc(d); toast('Created ' + d.name); cm.focus();
+    } catch (err) { $('docErr').textContent = 'Could not reach the local server.'; }
+    finally { switching = false; }
+  });
+
+  // ---------- boot ----------
+  (async function boot() {
+    try {
+      const [st, d] = await Promise.all([api('GET', '/api/status'), api('GET', '/api/doc')]);
+      engineName = st.engine; $('engine').textContent = st.engine || 'no TeX engine found';
+      await showDoc(d);   // fills the editor, shows the last PDF, then compiles
+      if (!st.engine) { $('perr').textContent = 'No TeX engine was found on this machine. Install Tectonic or MacTeX, then restart server.py.'; $('perr').classList.add('show'); }
+    } catch (e) { setStatus('err', 'Server unreachable'); console.error(e); }
+    renderHistory();
+    try { if (localStorage.getItem('typeset.chatOpen') === '1') openChat(true); } catch (e) {}
+    cm.focus();
+  })();
+})();
+</script>
+</body>
+</html>

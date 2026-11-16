@@ -1,0 +1,3 @@
+# Only needed for the "Ask AI" chat; the editor and compiler work without them.
+anthropic>=2.8
+google-genai>=3.3

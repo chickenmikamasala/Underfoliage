@@ -18,7 +18,7 @@ import subprocess
 import sys
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import parse_qs, quote, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlparse
 
 try:
     import anthropic
@@ -37,6 +37,9 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 DOC_DIR = os.path.join(ROOT, "doc")
 BUILD_DIR = os.path.join(ROOT, "build")
 STATE = os.path.join(DOC_DIR, ".typeset-state.json")   # which document is open
+IMAGE_DIR = os.path.join(DOC_DIR, "images")             # where "Insert image" saves pictures
+TEX_IMAGE_TYPES = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".pdf": "application/pdf"}
+MAX_IMAGE_BYTES = 40_000_000
 DEFAULT_DOC = "main.tex"
 DOC_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,79}\.tex$")
 INDEX = os.path.join(ROOT, "index.html")
@@ -359,6 +362,126 @@ def create_doc(raw_name):
     return name, None
 
 
+def clean_image_stem(raw):
+    """A file-name stem LaTeX is happy with: letters, digits, - and _ only (no spaces or extra dots)."""
+    stem = os.path.splitext(os.path.basename(raw or ""))[0]
+    stem = re.sub(r"\s+", "-", stem)
+    stem = re.sub(r"[^A-Za-z0-9_-]", "", stem).strip("-_")[:60]
+    return stem or "image"
+
+
+def unique_image_path(stem, ext):
+    os.makedirs(IMAGE_DIR, exist_ok=True)
+    path, i = os.path.join(IMAGE_DIR, stem + ext), 2
+    while os.path.exists(path):
+        path, i = os.path.join(IMAGE_DIR, f"{stem}-{i}{ext}"), i + 1
+    return path
+
+
+def looks_like(ext, data):
+    """Check the file really is what its extension says, so the TeX engine never chokes on it."""
+    if ext == ".png":
+        return data[:8] == b"\x89PNG\r\n\x1a\n"
+    if ext in (".jpg", ".jpeg"):
+        return data[:3] == b"\xff\xd8\xff"
+    if ext == ".pdf":
+        return data[:5] == b"%PDF-"
+    return False
+
+
+def convert_image(data, raw_name):
+    """Convert a picture LaTeX can't read (HEIC, TIFF, BMP, GIF, WebP...) to PNG or JPG bytes.
+
+    Returns (bytes, ext) or raises ValueError with a message for the user. Uses Pillow when it is
+    installed (plus pillow-heif for HEIC), and macOS's built-in `sips` tool as a fallback."""
+    errors = []
+    try:
+        from PIL import Image
+        try:
+            import pillow_heif                     # optional: HEIC/HEIF photos from iPhones
+            pillow_heif.register_heif_opener()
+        except ImportError:
+            pass
+        import io
+        im = Image.open(io.BytesIO(data))
+        im.seek(0)                                  # first frame of an animated GIF/WebP
+        im.info.pop("icc_profile", None)            # the TeX engine ignores it and only warns about it
+        photo = im.format in ("HEIF", "HEIC", "AVIF", "TIFF", "MPO") and "A" not in im.getbands()
+        out = io.BytesIO()
+        if photo:
+            im.convert("RGB").save(out, "JPEG", quality=92)
+            return out.getvalue(), ".jpg"
+        im.convert("RGBA" if "A" in im.getbands() or im.mode == "P" else "RGB").save(out, "PNG", optimize=True)
+        return out.getvalue(), ".png"
+    except ImportError:
+        errors.append("Pillow is not installed")
+    except Exception as e:
+        errors.append(f"Pillow could not read it ({type(e).__name__})")
+    if sys.platform == "darwin" and shutil.which("sips"):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            src = os.path.join(tmp, "in" + (os.path.splitext(raw_name)[1].lower() or ".img"))
+            dst = os.path.join(tmp, "out.png")
+            with open(src, "wb") as f:
+                f.write(data)
+            r = subprocess.run(["sips", "-s", "format", "png", src, "--out", dst], capture_output=True, timeout=60)
+            if r.returncode == 0 and os.path.exists(dst):
+                with open(dst, "rb") as f:
+                    return f.read(), ".png"
+            errors.append("macOS could not convert it")
+    raise ValueError("This image format could not be converted (" + "; ".join(errors) + "). "
+                     "Save it as PNG or JPG and add it again, or run: python3 -m pip install pillow pillow-heif")
+
+
+def save_image(data, raw_name):
+    """Store an uploaded image in doc/images/. Returns its path relative to doc/, e.g. images/plot.png."""
+    if not data:
+        raise ValueError("The file is empty.")
+    if len(data) > MAX_IMAGE_BYTES:
+        raise ValueError(f"The image is larger than {MAX_IMAGE_BYTES // 1_000_000} MB.")
+    ext = os.path.splitext(raw_name or "")[1].lower()
+    if ext not in TEX_IMAGE_TYPES or not looks_like(ext, data):
+        data, ext = convert_image(data, raw_name or "image")
+    if ext == ".jpeg":
+        ext = ".jpg"
+    path = unique_image_path(clean_image_stem(raw_name), ext)
+    with open(path, "wb") as f:
+        f.write(data)
+    return os.path.relpath(path, DOC_DIR).replace(os.sep, "/")
+
+
+def list_images():
+    """Images the documents can use: everything in doc/images/ plus any PNG/JPG/PDF directly in doc/."""
+    found = []
+    for folder in (IMAGE_DIR, DOC_DIR):
+        try:
+            names = os.listdir(folder)
+        except OSError:
+            continue
+        for fn in names:
+            p = os.path.join(folder, fn)
+            if os.path.splitext(fn)[1].lower() in TEX_IMAGE_TYPES and not fn.startswith(".") and os.path.isfile(p):
+                st = os.stat(p)
+                found.append({"path": os.path.relpath(p, DOC_DIR).replace(os.sep, "/"),
+                              "name": fn, "size": st.st_size, "modified": st.st_mtime,
+                              "kind": "pdf" if fn.lower().endswith(".pdf") else "image"})
+    found.sort(key=lambda d: d["modified"], reverse=True)
+    return found
+
+
+def doc_image_file(rel):
+    """Resolve an image path from the page (e.g. images/plot.png) to a file inside doc/, or None."""
+    rel = (rel or "").replace("\\", "/")
+    if not rel or rel.startswith("/") or ".." in rel.split("/") or any(part.startswith(".") for part in rel.split("/")):
+        return None
+    path = os.path.realpath(os.path.join(DOC_DIR, rel))
+    if not path.startswith(os.path.realpath(DOC_DIR) + os.sep):
+        return None
+    if os.path.splitext(path)[1].lower() not in TEX_IMAGE_TYPES or not os.path.isfile(path):
+        return None
+    return path
+
+
 def load_config():
     try:
         with open(CONFIG, encoding="utf-8") as f:
@@ -555,7 +678,10 @@ def run_chat(history, emit, name=None):
         if not msgs or msgs[-1]["role"] != "user":
             emit({"type": "error", "message": "The last message must come from you."})
             return
-        system = CHAT_SYSTEM + f"\n\nDocument: {name}\n\nCurrent content:\n\n" + read_doc(name)["source"]
+        imgs = [i["path"] for i in list_images()][:50]
+        img_note = ("\n\nImage files the document can include with \\includegraphics (paths relative to it): "
+                    + ", ".join(imgs) + ". Add \\usepackage{graphicx} to the preamble if it is missing.") if imgs else ""
+        system = CHAT_SYSTEM + img_note + f"\n\nDocument: {name}\n\nCurrent content:\n\n" + read_doc(name)["source"]
         PROVIDERS[provider]["run"](cfg, msgs, system, emit)
     except Exception as e:  # keep the stream well-formed whatever happens
         emit({"type": "error", "message": f"{type(e).__name__}: {e}"})
@@ -569,28 +695,41 @@ def run_claude(cfg, msgs, system, emit):
     client = anthropic.Anthropic(api_key=cfg["key"]) if cfg["key"] else anthropic.Anthropic()
     results = []
     tools = [beta_tool(fn) for fn in make_tool_funcs(results).values()]
+    # Newer models take an effort level and server-side refusal fallbacks; some older ones reject
+    # them. If the first request is refused because of them, try once more without.
+    extras = {"output_config": {"effort": "medium"},
+              "betas": ["server-side-fallback-2026-07-01"], "fallbacks": "default"}
     try:
-        runner = client.beta.messages.tool_runner(
-            model=cfg["model"],
-            max_tokens=16000,
-            output_config={"effort": "medium"},
-            betas=["server-side-fallback-2026-07-01"],
-            fallbacks="default",
-            system=system,
-            tools=tools,
-            messages=msgs,
-            max_iterations=16,
-        )
-        for message in runner:
-            flush_results(results, emit)
-            if message.stop_reason == "refusal":
-                emit({"type": "error", "message": "Claude declined this request."})
-            for block in message.content:
-                if block.type == "text" and block.text.strip():
-                    emit({"type": "text", "text": block.text.strip()})
-                elif block.type == "tool_use":
-                    emit({"type": "tool", "name": block.name, "summary": tool_summary(block.name, block.input)})
-        flush_results(results, emit)
+        for attempt in range(2):
+            got_reply = False
+            try:
+                runner = client.beta.messages.tool_runner(
+                    model=cfg["model"],
+                    max_tokens=16000,
+                    system=system,
+                    tools=tools,
+                    messages=msgs,
+                    max_iterations=16,
+                    **extras,
+                )
+                for message in runner:
+                    got_reply = True
+                    flush_results(results, emit)
+                    if message.stop_reason == "refusal":
+                        emit({"type": "error", "message": "Claude declined this request."})
+                    for block in message.content:
+                        if block.type == "text" and block.text.strip():
+                            emit({"type": "text", "text": block.text.strip()})
+                        elif block.type == "tool_use":
+                            emit({"type": "tool", "name": block.name, "summary": tool_summary(block.name, block.input)})
+                flush_results(results, emit)
+                return
+            except anthropic.BadRequestError as e:
+                text = str(getattr(e, "message", e)).lower()
+                if attempt == 0 and not got_reply and extras and any(w in text for w in ("effort", "output_config", "fallback", "beta")):
+                    extras = {}
+                    continue
+                raise
     except anthropic.AuthenticationError:
         emit({"type": "error", "message": "The Claude API key was rejected. Check it and save it again.", "auth": True})
     except anthropic.RateLimitError:
@@ -709,6 +848,50 @@ def verify_claude(key, model):
         return True, f"Key works, but the model {model!r} was not found. Set \"claude_model\" in config.json."
 
 
+# Gemini models the API lists that are not for chatting (embeddings, speech, images, live audio...).
+GEMINI_NON_CHAT = ("embedding", "tts", "image", "live", "transcribe", "audio", "robotics", "aqa",
+                   "imagen", "veo", "lyria", "banana", "computer-use", "deep-research")
+
+
+def models_gemini(key):
+    """Models this Gemini key can chat with, newest first."""
+    client = genai.Client(api_key=key)   # keep a reference: the list is fetched page by page
+    out = []
+    for m in client.models.list():
+        mid = (m.name or "").removeprefix("models/")
+        if not mid.startswith("gemini") or "generateContent" not in (m.supported_actions or []):
+            continue
+        if any(w in mid for w in GEMINI_NON_CHAT):
+            continue
+        out.append({"id": mid, "name": m.display_name or mid})
+    def newest_first(d):
+        m = re.match(r"gemini-(\d+(?:\.\d+)?)", d["id"])
+        return (-(float(m.group(1)) if m else 0.0), d["id"])     # unnumbered previews go last
+    out.sort(key=newest_first)
+    return out
+
+
+def models_claude(key):
+    """Active Claude models this key can use, newest first (as the API returns them)."""
+    client = anthropic.Anthropic(api_key=key) if key else anthropic.Anthropic()
+    return [{"id": m.id, "name": m.display_name or m.id} for m in client.models.list(lifecycle=["active"])]
+
+
+MODEL_CACHE = {}           # (provider, key) -> (time, models); lists change rarely
+MODEL_CACHE_SECONDS = 600
+MODEL_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,127}$")
+
+
+def available_models(provider, key, refresh=False):
+    """Ask the provider which models this key may use. Raises on network or key problems."""
+    cached = MODEL_CACHE.get((provider, key))
+    if cached and not refresh and time.time() - cached[0] < MODEL_CACHE_SECONDS:
+        return cached[1]
+    models = PROVIDERS[provider]["models"](key)
+    MODEL_CACHE[(provider, key)] = (time.time(), models)
+    return models
+
+
 # ---------------------------------------------------------------------------------------------
 # AI providers. To add one, write a run_<id>() and verify_<id>() like the ones above and add an
 # entry here; the key form, status line and config handling all read from this table.
@@ -724,6 +907,7 @@ PROVIDERS = {
         "available": lambda: genai is not None,
         "verify": verify_gemini,                  # (key, model) -> (ok, message)
         "run": run_gemini,                        # (cfg, msgs, system, emit) -> None
+        "models": models_gemini,                  # (key) -> [{"id", "name"}] for the model picker
     },
     "claude": {
         "name": "Claude",
@@ -734,6 +918,7 @@ PROVIDERS = {
         "available": lambda: anthropic is not None,
         "verify": verify_claude,
         "run": run_claude,
+        "models": models_claude,
     },
 }
 FALLBACK_PROVIDER = "gemini"   # used when a key's prefix matches no provider
@@ -831,6 +1016,32 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json({"error": "not found"}, 404)
             else:
                 self.send_file(os.path.join(ASSETS_DIR, fname), ASSET_TYPES[ext])
+        elif path == "/api/images":
+            self.send_json({"folder": IMAGE_DIR, "images": list_images()})
+        elif path == "/api/chat/models":
+            cfg = chat_settings()
+            p = cfg["provider"]
+            if not p:
+                self.send_json({"error": "Add an API key first."}, 400)
+                return
+            info = {"provider": p, "provider_name": PROVIDERS[p]["name"], "current": cfg["model"],
+                    "default": PROVIDERS[p]["default_model"], "models": []}
+            if "models" not in PROVIDERS[p] or not sdk_available(p):
+                info["error"] = f"{PROVIDERS[p]['name']} can't list its models here; type a model name instead."
+            else:
+                refresh = (parse_qs(urlparse(self.path).query).get("refresh") or ["0"])[0] == "1"
+                try:
+                    info["models"] = available_models(p, cfg["key"], refresh)
+                except Exception as e:
+                    info["error"] = f"Could not get the model list from {PROVIDERS[p]['name']} ({type(e).__name__}). You can still type a model name."
+            self.send_json(info)
+        elif path == "/doc-image":
+            rel = (parse_qs(urlparse(self.path).query).get("path") or [""])[0]
+            f = doc_image_file(rel)
+            if not f:
+                self.send_json({"error": "not found"}, 404)
+            else:
+                self.send_file(f, TEX_IMAGE_TYPES[os.path.splitext(f)[1].lower()])
         elif path == "/pdf":
             self.send_file(pdf_file(current_name()), "application/pdf")
         elif path == "/download/pdf":
@@ -860,7 +1071,38 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         path = urlparse(self.path).path
-        if path == "/api/chat/key":
+        if path == "/api/images":
+            # Raw file body; the original file name comes in the X-Filename header (URL-encoded).
+            n = int(self.headers.get("Content-Length") or 0)
+            if n > MAX_IMAGE_BYTES:
+                self.send_json({"error": f"The image is larger than {MAX_IMAGE_BYTES // 1_000_000} MB."}, 413)
+                return
+            data = self.rfile.read(n) if n else b""
+            raw_name = unquote(self.headers.get("X-Filename") or "image")
+            try:
+                rel = save_image(data, raw_name)
+            except ValueError as e:
+                self.send_json({"error": str(e)}, 400)
+                return
+            self.send_json({"path": rel, "images": list_images()})
+        elif path == "/api/chat/model":
+            cfg = chat_settings()
+            p = cfg["provider"]
+            model = (self.read_body().get("model") or "").strip()
+            if not p:
+                self.send_json({"error": "Add an API key first."}, 400)
+                return
+            if model and not MODEL_ID_RE.match(model):
+                self.send_json({"error": "That doesn't look like a model name."}, 400)
+                return
+            saved = load_config()
+            if not model or model == PROVIDERS[p]["default_model"]:
+                saved.pop(f"{p}_model", None)      # back to the default
+            else:
+                saved[f"{p}_model"] = model
+            save_config(saved)
+            self.send_json({"provider": p, "model": model_for(p, saved)})
+        elif path == "/api/chat/key":
             body = self.read_body()
             key = clean_key(body.get("key"))
             chosen = body.get("provider") if body.get("provider") in PROVIDERS else None

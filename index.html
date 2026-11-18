@@ -145,7 +145,30 @@ main { flex: 1 1 auto; min-height: 0; display: flex; }
 /* chat drawer (Ask Claude) */
 #chat { flex: 0 0 42%; min-height: 0; display: none; flex-direction: column; border-top: 1px solid var(--line); background: var(--panel); }
 #chat.open { display: flex; }
+#chat { position: relative; }
 #chat .ch { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-bottom: 1px solid var(--line); font-size: 12.5px; color: var(--muted); }
+/* model picker */
+.modelmenu { position: static; min-width: 0; }
+.modelbtn { display: inline-flex; align-items: center; gap: 5px; max-width: 220px; border: 1px solid var(--line); background: var(--bg); border-radius: 6px; padding: 2px 7px; cursor: pointer; font-family: var(--font-mono); font-size: 11px; color: var(--fg); }
+.modelbtn:hover, .modelbtn[aria-expanded="true"] { border-color: var(--muted); }
+.modelbtn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.modelbtn svg { flex: 0 0 auto; color: var(--muted); }
+.modelbtn[hidden] { display: none; }
+.modelpanel { position: absolute; top: 36px; left: 8px; right: 8px; max-height: calc(100% - 44px); z-index: 15; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 12px 32px rgba(0,0,0,.2); padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.modelpanel[hidden] { display: none; }
+.modelpanel .mtop { display: flex; gap: 6px; }
+.modelpanel input { flex: 1 1 auto; min-width: 0; font: inherit; font-size: 12.5px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); }
+.modelpanel .mtop button { border: 1px solid var(--line); background: var(--bg); color: var(--muted); border-radius: 6px; padding: 0 8px; cursor: pointer; font-size: 12px; }
+.modelpanel .mmsg { font-size: 12px; color: var(--muted); }
+.modelpanel .mmsg.err { color: var(--err); }
+.modelpanel .mmsg:empty { display: none; }
+#modelList { list-style: none; margin: 0; padding: 0; overflow: auto; display: flex; flex-direction: column; gap: 1px; }
+#modelList button { width: 100%; text-align: left; background: none; border: 0; border-radius: 6px; padding: 6px 8px; cursor: pointer; display: grid; grid-template-columns: 1fr auto; gap: 1px 10px; color: var(--fg); }
+#modelList button:hover, #modelList button:focus-visible { background: var(--accent-soft); }
+#modelList button[aria-current="true"] { background: var(--accent-soft); }
+#modelList .mn { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#modelList .mi { grid-column: 1; font-family: var(--font-mono); font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#modelList .mt { grid-column: 2; grid-row: 1 / span 2; align-self: center; font-size: 11px; color: var(--muted); }
 #chat .ch b { color: var(--fg); font-weight: 600; }
 #chat .ch .model { font-family: var(--font-mono); font-size: 11px; }
 #chat .ch button { background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 12px; }
@@ -193,6 +216,39 @@ main { flex: 1 1 auto; min-height: 0; display: flex; }
 #empty b { color: var(--fg); display: block; font-size: 15px; margin-bottom: 6px; }
 #perr { position: absolute; left: 16px; right: 16px; top: 50px; background: var(--err-soft); color: var(--err); border: 1px solid var(--err); border-radius: 8px; padding: 10px 14px; font-size: 13px; display: none; z-index: 2; }
 #perr.show { display: block; }
+
+/* Insert image dialog */
+#imgDialog { width: min(640px, calc(100vw - 32px)); max-height: calc(100vh - 48px); padding: 0; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--fg); box-shadow: 0 24px 60px rgba(0,0,0,.28); }
+#imgDialog::backdrop { background: rgba(10, 12, 16, .45); }
+#imgDialog form { display: flex; flex-direction: column; max-height: calc(100vh - 50px); }
+.idh { display: flex; align-items: center; padding: 14px 16px 10px; }
+.idh h2 { font-size: 15px; font-weight: 600; margin: 0; }
+.idh button { margin-left: auto; background: none; border: 0; color: var(--muted); cursor: pointer; font-size: 15px; }
+.idb { padding: 0 16px 12px; overflow: auto; display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+#dropZone { border: 1.5px dashed var(--line); border-radius: 10px; padding: 16px; text-align: center; color: var(--muted); font-size: 13px; line-height: 1.5; }
+#dropZone.over { border-color: var(--accent); background: var(--accent-soft); color: var(--fg); }
+#dropZone .btn { margin: 4px 0; }
+#imgStatus { font-size: 12.5px; color: var(--muted); min-height: 1em; }
+#imgStatus.err { color: var(--err); }
+#imgGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; }
+#imgGrid button { background: var(--bg); border: 1.5px solid var(--line); border-radius: 8px; padding: 6px; cursor: pointer; display: flex; flex-direction: column; gap: 6px; color: var(--fg); min-width: 0; }
+#imgGrid button:hover { border-color: var(--muted); }
+#imgGrid button[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+#imgGrid .th { height: 84px; border-radius: 5px; background: #fff; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+#imgGrid .th img { max-width: 100%; max-height: 100%; object-fit: contain; }
+#imgGrid .th .pdf { font: 600 12px var(--font-mono); color: #8a2b22; border: 1.5px solid #8a2b22; border-radius: 4px; padding: 3px 6px; }
+#imgGrid .nm { font-family: var(--font-mono); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
+#imgEmpty { font-size: 13px; color: var(--muted); }
+.iopts { display: grid; grid-template-columns: 1fr auto; gap: 8px 12px; align-items: end; }
+.iopts label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+.iopts input[type=text], .iopts select { font: inherit; font-size: 13px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); }
+.iopts .chk { flex-direction: row; align-items: center; gap: 6px; grid-column: 1 / -1; color: var(--fg); font-size: 13px; }
+.iopts .chk input { accent-color: var(--accent); margin: 0; }
+.iopts[aria-disabled="true"] { opacity: .5; pointer-events: none; }
+.idf { display: flex; align-items: center; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--line); }
+.idf .note { font-size: 11.5px; color: var(--muted); margin-right: auto; overflow-wrap: anywhere; }
+.idf .note code { font-family: var(--font-mono); }
+@media (max-width: 520px) { .iopts { grid-template-columns: 1fr; } }
 
 /* toast */
 #toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 8px 14px; border-radius: 8px; font-size: 13px; opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 5; }
@@ -242,6 +298,10 @@ main { flex: 1 1 auto; min-height: 0; display: flex; }
   <div class="spacer"></div>
   <div class="status" id="status"><span class="dot"></span><span class="txt">Loading</span></div>
   <label class="toggle" title="Compile automatically about a second after you stop typing. Edits made on disk by Claude always recompile."><input type="checkbox" id="autoCompile"> Auto-compile</label>
+  <button type="button" class="btn" id="imgBtn" title="Insert an image at the cursor">
+    <svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.75" y="2.75" width="12.5" height="10.5" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="5.5" cy="6.25" r="1.25" fill="currentColor"/><path d="M2.5 12l3.6-3.6 2.4 2.4 2.2-2.2 3 3" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+    Image
+  </button>
   <button type="button" class="btn" id="chatToggle" aria-pressed="false">Ask AI</button>
   <button type="button" class="btn primary" id="compileBtn">Compile <kbd id="kbdHint">⌘↵</kbd></button>
 </header>
@@ -260,7 +320,19 @@ main { flex: 1 1 auto; min-height: 0; display: flex; }
       <pre id="logText" hidden></pre>
     </div>
     <div id="chat" aria-label="Ask AI">
-      <div class="ch"><b id="chatProvider">Assistant</b><span class="model" id="chatModel"></span><button type="button" id="chatChangeKey">Change key</button><button type="button" id="chatClear">Clear</button><button type="button" id="chatClose" aria-label="Close chat">✕</button></div>
+      <div class="ch"><b id="chatProvider">Assistant</b>
+        <div class="modelmenu">
+          <button type="button" class="modelbtn" id="modelBtn" aria-haspopup="true" aria-expanded="false" title="Choose which model answers" hidden>
+            <span id="chatModel"></span>
+            <svg width="9" height="9" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <div class="modelpanel" id="modelPanel" hidden>
+            <div class="mtop"><input id="modelFilter" placeholder="Search models, or type a model name" autocomplete="off" spellcheck="false" aria-label="Search models"><button type="button" id="modelRefresh" title="Fetch the list again">Refresh</button></div>
+            <div class="mmsg" id="modelMsg" role="status"></div>
+            <ul id="modelList"></ul>
+          </div>
+        </div>
+        <button type="button" id="chatChangeKey">Change key</button><button type="button" id="chatClear">Clear</button><button type="button" id="chatClose" aria-label="Close chat">✕</button></div>
       <div id="chatKey">
         <p>Paste an API key. Gemini keys start with <code>AQ.</code> (older ones <code>AIza</code>) and Claude keys with <code>sk-ant-</code>; for anything else, choose the provider from the menu. The key is checked with its provider before it is saved. It is stored only in <code>config.json</code> next to the server and is sent only to that provider's API.</p>
         <div class="row"><select id="keyProvider" aria-label="Provider"><option value="">Detect provider</option></select><input type="password" id="keyInput" placeholder="AQ.… or sk-ant-…" autocomplete="off" spellcheck="false"><button type="button" class="btn primary" id="keySave">Save key</button></div>
@@ -295,6 +367,40 @@ main { flex: 1 1 auto; min-height: 0; display: flex; }
     </div>
   </section>
 </main>
+<dialog id="imgDialog" aria-labelledby="imgTitle">
+  <form method="dialog" id="imgForm">
+    <div class="idh"><h2 id="imgTitle">Insert image</h2><button type="button" id="imgClose" aria-label="Close">✕</button></div>
+    <div class="idb">
+      <div id="dropZone">
+        Drop an image here, or<br>
+        <button type="button" class="btn" id="imgChoose">Choose a file…</button><br>
+        PNG, JPG and PDF are used as they are. HEIC, WebP, GIF, TIFF, BMP and SVG are converted.
+        <input type="file" id="imgFile" accept="image/*,.pdf,.heic,.heif,.tif,.tiff,.svg" hidden>
+      </div>
+      <div id="imgStatus" role="status"></div>
+      <div id="imgGrid" role="list"></div>
+      <div id="imgEmpty" hidden>No images yet. Add one above, or copy image files into the documents folder.</div>
+      <div class="iopts" id="imgOpts" aria-disabled="true">
+        <label>Caption <input type="text" id="imgCaption" placeholder="Optional, e.g. Coal plant locations"></label>
+        <label>Width
+          <select id="imgWidth">
+            <option value="\linewidth">Full width</option>
+            <option value="0.8\linewidth" selected>80%</option>
+            <option value="0.6\linewidth">60%</option>
+            <option value="0.5\linewidth">Half</option>
+            <option value="0.3\linewidth">30%</option>
+          </select>
+        </label>
+        <label class="chk"><input type="checkbox" id="imgFigure" checked> Put it in a numbered figure (with caption and label)</label>
+      </div>
+    </div>
+    <div class="idf">
+      <span class="note">Saved in <code id="imgFolder">doc/images/</code></span>
+      <button type="button" class="btn" id="imgCancel">Cancel</button>
+      <button type="button" class="btn primary" id="imgInsert" disabled>Insert</button>
+    </div>
+  </form>
+</dialog>
 <div id="toast" role="status"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
@@ -339,9 +445,18 @@ main { flex: 1 1 auto; min-height: 0; display: flex; }
 
   async function api(method, url, body) {
     const r = await fetch(url, { method, headers: body ? { 'Content-Type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined, cache: 'no-store' });
-    if (!r.ok) throw new Error(method + ' ' + url + ' → ' + r.status);
+    if (!r.ok) { const e = new Error(method + ' ' + url + ' → ' + r.status); e.status = r.status; throw e; }
     return r.json();
   }
+  // The page is read fresh from disk, but the server only learns new requests when it restarts.
+  // A 404 from one of our own routes therefore means "the server is older than this page".
+  const RESTART_MSG = 'Underleaf was updated but the server is still running the old version. Double-click Open Underleaf.command to restart it, then reload this page.';
+  function serverProblem(e) {
+    if (e && e.status === 404) return RESTART_MSG;
+    if (e && e.status) return 'The local server answered with an error (status ' + e.status + ').';
+    return 'Could not reach the local server. If Underleaf has stopped, double-click Open Underleaf.command to start it.';
+  }
+  const isOldServer = (r, d) => r.status === 404 && d && d.error === 'not found';
 
   // Replace the whole buffer while keeping cursor and scroll where they were.
   function replaceText(text) {
@@ -579,6 +694,7 @@ main { flex: 1 1 auto; min-height: 0; display: flex; }
       $('chatModel').textContent = st.model || '';
       $('chatProvider').textContent = st.provider_name || 'Assistant';
       $('chatChangeKey').hidden = !st.configured || st.source !== 'config.json';
+      $('modelBtn').hidden = !st.configured;
       $('chatKey').classList.toggle('show', !st.configured);
       $('keyErr').textContent = '';
       const sel = $('keyProvider');
@@ -603,6 +719,67 @@ main { flex: 1 1 auto; min-height: 0; display: flex; }
   }
   $('chatToggle').onclick = () => openChat(!chat.classList.contains('open'));
   $('chatClose').onclick = () => openChat(false);
+
+  window.addEventListener('scroll', () => { if (document.scrollingElement.scrollTop) document.scrollingElement.scrollTop = 0; });
+
+  // ---------- model picker ----------
+  let modelInfo = null;
+  function renderModels() {
+    const list = $('modelList'); list.replaceChildren();
+    if (!modelInfo) return;
+    const q = $('modelFilter').value.trim().toLowerCase();
+    const shown = modelInfo.models.filter((m) => !q || m.id.toLowerCase().includes(q) || m.name.toLowerCase().includes(q));
+    const typed = $('modelFilter').value.trim();
+    const items = shown.map((m) => ({ id: m.id, name: m.name }));
+    // Let you use a model the list doesn't show (or when the list couldn't be fetched).
+    if (typed && !modelInfo.models.some((m) => m.id === typed)) items.push({ id: typed, name: 'Use this model name', typed: true });
+    items.forEach((m) => {
+      const li = document.createElement('li'), b = document.createElement('button');
+      b.type = 'button';
+      if (m.id === modelInfo.current) b.setAttribute('aria-current', 'true');
+      const n = document.createElement('span'); n.className = 'mn'; n.textContent = m.name;
+      const i = document.createElement('span'); i.className = 'mi'; i.textContent = m.id;
+      const t = document.createElement('span'); t.className = 'mt';
+      t.textContent = m.id === modelInfo.current ? 'in use' : (m.id === modelInfo.default ? 'default' : '');
+      b.append(n, t, i);
+      b.onclick = () => chooseModel(m.id);
+      li.append(b); list.append(li);
+    });
+    if (!items.length && !modelInfo.error) setModelMsg('No models match.');
+  }
+  function setModelMsg(text, isErr) { $('modelMsg').textContent = text || ''; $('modelMsg').className = 'mmsg' + (isErr ? ' err' : ''); }
+  async function loadModels(refresh) {
+    setModelMsg('Asking ' + ($('chatProvider').textContent || 'the provider') + ' which models your key can use…');
+    $('modelList').replaceChildren();
+    try {
+      modelInfo = await api('GET', '/api/chat/models' + (refresh ? '?refresh=1' : ''));
+      setModelMsg(modelInfo.error || (modelInfo.models.length + ' models available. Models that can\'t use tools won\'t be able to edit.'), !!modelInfo.error);
+      renderModels();
+    } catch (e) { setModelMsg(serverProblem(e), true); }
+  }
+  async function chooseModel(id) {
+    setModelMsg('Switching to ' + id + '…');
+    try {
+      const r = await fetch('/api/chat/model', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: id }) });
+      const d = await r.json();
+      if (!r.ok) { setModelMsg(isOldServer(r, d) ? RESTART_MSG : (d.error || 'Could not change the model.'), true); return; }
+      closeModelMenu(); await chatStatus(); toast('Using ' + d.model); chatInput.focus();
+    } catch (e) { setModelMsg(serverProblem(e), true); }
+  }
+  function closeModelMenu() { $('modelPanel').hidden = true; $('modelBtn').setAttribute('aria-expanded', 'false'); }
+  $('modelBtn').onclick = () => {
+    if (!$('modelPanel').hidden) return closeModelMenu();
+    $('modelPanel').hidden = false; $('modelBtn').setAttribute('aria-expanded', 'true');
+    $('modelFilter').value = ''; $('modelFilter').focus({ preventScroll: true });
+    loadModels(false);
+  };
+  $('modelRefresh').onclick = () => loadModels(true);
+  $('modelFilter').addEventListener('input', renderModels);
+  $('modelFilter').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); const first = $('modelList').querySelector('button'); if (first) first.click(); }
+    if (e.key === 'Escape') { e.stopPropagation(); closeModelMenu(); $('modelBtn').focus(); }
+  });
+  document.addEventListener('pointerdown', (e) => { if (!$('modelPanel').hidden && !e.target.closest('.modelmenu')) closeModelMenu(); });
   $('chatClear').onclick = () => { history = []; saveHistory(); renderHistory(); };
   $('chatChangeKey').onclick = () => { const k = $('chatKey'); k.classList.toggle('show'); if (k.classList.contains('show')) $('keyInput').focus(); };
   $('keySave').onclick = async () => {
@@ -622,7 +799,7 @@ main { flex: 1 1 auto; min-height: 0; display: flex; }
       $('chatKey').classList.remove('show');
       if (data.note) addMsg(data.verified === true && !/not found/.test(data.note) ? 'assistant' : 'error', data.note);
       chatInput.focus();
-    } catch (e) { $('keyErr').textContent = 'Could not reach the local server: ' + e.message; }
+    } catch (e) { $('keyErr').textContent = serverProblem(e); }
     finally { btn.disabled = false; btn.textContent = 'Save key'; }
   };
   $('keyInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('keySave').click(); } });
@@ -664,6 +841,124 @@ main { flex: 1 1 auto; min-height: 0; display: flex; }
       chatInput.focus();
     }
   });
+
+  // ---------- Insert image ----------
+  const imgDialog = $('imgDialog');
+  let imgSelected = null;
+  function imgSetStatus(text, isErr) { $('imgStatus').textContent = text || ''; $('imgStatus').className = isErr ? 'err' : ''; }
+  function texEscape(t) {
+    return t.replace(/\\/g, '\\textbackslash{}').replace(/([#$%&_{}])/g, '\\$1')
+            .replace(/~/g, '\\textasciitilde{}').replace(/\^/g, '\\textasciicircum{}');
+  }
+  function selectImage(path) {
+    imgSelected = path;
+    $('imgGrid').querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.path === path)));
+    $('imgOpts').setAttribute('aria-disabled', path ? 'false' : 'true');
+    $('imgInsert').disabled = !path;
+  }
+  async function loadImages(selectPath) {
+    try {
+      const r = await api('GET', '/api/images');
+      $('imgFolder').textContent = r.folder.replace(/^.*\/([^/]+\/[^/]+\/[^/]+)$/, '$1') + '/';
+      $('imgFolder').title = r.folder;
+      const grid = $('imgGrid'); grid.replaceChildren();
+      r.images.forEach((im) => {
+        const b = document.createElement('button'); b.type = 'button'; b.dataset.path = im.path; b.title = im.path;
+        b.setAttribute('role', 'listitem');
+        const th = document.createElement('div'); th.className = 'th';
+        if (im.kind === 'pdf') { const p = document.createElement('span'); p.className = 'pdf'; p.textContent = 'PDF'; th.append(p); }
+        else { const i = document.createElement('img'); i.alt = ''; i.loading = 'lazy'; i.src = '/doc-image?path=' + encodeURIComponent(im.path) + '&t=' + im.modified; th.append(i); }
+        const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = im.path;
+        b.append(th, nm);
+        b.onclick = () => selectImage(im.path);
+        b.ondblclick = () => { selectImage(im.path); insertImage(); };
+        grid.append(b);
+      });
+      $('imgEmpty').hidden = r.images.length > 0;
+      selectImage(selectPath && r.images.some((i) => i.path === selectPath) ? selectPath : null);
+    } catch (e) { imgSetStatus(serverProblem(e), true); }
+  }
+  // SVG: the TeX engine can't read it, so draw it to a PNG in the browser (works on every OS).
+  async function svgToPng(file) {
+    const url = URL.createObjectURL(file);
+    try {
+      const img = new Image(); img.src = url; await img.decode();
+      const w = img.naturalWidth || 800, h = img.naturalHeight || 600, scale = Math.min(4, Math.max(1, 2000 / Math.max(w, h)));
+      const c = document.createElement('canvas'); c.width = Math.round(w * scale); c.height = Math.round(h * scale);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      const blob = await new Promise((res) => c.toBlob(res, 'image/png'));
+      return new File([blob], file.name.replace(/\.svgz?$/i, '') + '.png', { type: 'image/png' });
+    } finally { URL.revokeObjectURL(url); }
+  }
+  async function uploadImage(file) {
+    if (!file) return;
+    imgSetStatus('Adding ' + file.name + '…');
+    try {
+      if (/\.svgz?$/i.test(file.name) || file.type === 'image/svg+xml') {
+        try { file = await svgToPng(file); } catch (e) { /* let the server try */ }
+      }
+      const r = await fetch('/api/images', { method: 'POST', headers: { 'X-Filename': encodeURIComponent(file.name), 'Content-Type': 'application/octet-stream' }, body: file });
+      let d = {}; try { d = await r.json(); } catch (e) {}
+      if (!r.ok || d.error) { imgSetStatus(isOldServer(r, d) ? RESTART_MSG : (d.error || ('The image could not be added (status ' + r.status + ').')), true); return; }
+      imgSetStatus('Added ' + d.path + '. Choose a caption and width, then Insert.');
+      await loadImages(d.path);
+      $('imgCaption').focus();
+    } catch (e) { imgSetStatus(serverProblem(e), true); }
+  }
+  function ensureGraphicx() {
+    const text = cm.getValue();
+    const begin = text.indexOf('\\begin{document}');
+    const pre = begin >= 0 ? text.slice(0, begin) : text;
+    const code = pre.replace(/(^|[^\\])%.*$/gm, '$1');                 // ignore commented-out lines
+    if (/\\documentclass(\[[^\]]*\])?\{beamer\}/.test(code)) return;   // beamer loads graphicx itself
+    if (/\\usepackage(\[[^\]]*\])?\{[^}]*\bgraphicx?\b[^}]*\}/.test(code)) return;
+    const lines = pre.split('\n');
+    let at = -1;
+    lines.forEach((ln, i) => { if (/^\s*\\(usepackage|documentclass)\b/.test(ln)) at = i; });
+    if (at < 0) return;
+    cm.replaceRange('\\usepackage{graphicx}\n', { line: at + 1, ch: 0 }, undefined, '+input');
+  }
+  function insertImage() {
+    if (!imgSelected) return;
+    const path = imgSelected;
+    const stem = path.replace(/^.*\//, '').replace(/\.[^.]+$/, '');
+    const width = $('imgWidth').value, caption = $('imgCaption').value.trim();
+    let snippet;
+    if ($('imgFigure').checked) {
+      snippet = '\\begin{figure}[htbp]\n  \\centering\n  \\includegraphics[width=' + width + ']{' + path + '}\n' +
+        '  \\caption{' + (caption ? texEscape(caption) : 'Caption') + '}\n  \\label{fig:' + stem + '}\n\\end{figure}\n';
+    } else {
+      snippet = '\\includegraphics[width=' + width + ']{' + path + '}\n';
+    }
+    imgDialog.close();
+    cm.operation(() => {
+      const cur = cm.getCursor();
+      const line = cm.getLine(cur.line);
+      // Put the image on its own line: after the current line if the cursor is mid-text.
+      const pos = line.trim() === '' ? { line: cur.line, ch: 0 } : { line: cur.line, ch: line.length };
+      const text = (line.trim() === '' ? '' : '\n') + snippet;
+      cm.replaceRange(text, pos, line.trim() === '' ? { line: cur.line, ch: line.length } : undefined, '+input');
+      ensureGraphicx();   // runs after, so the cursor position above was not shifted
+    });
+    cm.focus();
+    toast('Inserted ' + path);
+    compile();
+  }
+  $('imgBtn').onclick = () => {
+    imgSetStatus(''); $('imgCaption').value = '';
+    imgDialog.showModal(); loadImages(imgSelected);
+  };
+  $('imgClose').onclick = $('imgCancel').onclick = () => imgDialog.close();
+  $('imgInsert').onclick = () => insertImage();
+  $('imgChoose').onclick = () => $('imgFile').click();
+  $('imgFile').onchange = () => { const f = $('imgFile').files[0]; $('imgFile').value = ''; uploadImage(f); };
+  $('imgCaption').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); insertImage(); } });
+  const dz = $('dropZone');
+  ['dragenter', 'dragover'].forEach((t) => dz.addEventListener(t, (e) => { e.preventDefault(); dz.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach((t) => dz.addEventListener(t, (e) => { e.preventDefault(); dz.classList.remove('over'); }));
+  // One drop handler for the whole dialog (the zone's drop bubbles up to it), so a file is added once.
+  imgDialog.addEventListener('dragover', (e) => e.preventDefault());
+  imgDialog.addEventListener('drop', (e) => { e.preventDefault(); dz.classList.remove('over'); const f = e.dataTransfer.files[0]; if (f) uploadImage(f); });
 
   // ---------- File menu: one document open at a time ----------
   let switching = false;

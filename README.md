@@ -33,13 +33,14 @@ You need Python 3.10 or newer (check with `python3 --version`; on Windows the
 command is usually `python`). Get it from https://www.python.org/downloads/
 if you don't have it.
 
-Then install the packages the chat uses:
+Then install the packages for the AI chat and for converting images:
 
 ```bash
 python3 -m pip install -r requirements.txt
 ```
 
-The editor and compiler work without them; only **Ask AI** needs them.
+The editor and compiler work without them. **Ask AI** needs them, and so
+does inserting HEIC, WebP, GIF, TIFF or BMP images on Windows and Linux.
 
 ### 3. Install a TeX engine
 
@@ -98,6 +99,30 @@ appears in the list. Put images and `.bib` files in `doc/` too, so
 `\includegraphics` and `\bibliography` can find them. Names can use letters,
 digits, `-` and `_`.
 
+### Images
+
+Click **Image** in the toolbar to add a picture where your cursor is.
+
+1. Drop an image onto the panel, or click **Choose a file…**. It is saved in
+   `doc/images/`. Images already in that folder are listed too.
+2. Pick the image, type a caption if you want one, and choose a width.
+3. Click **Insert**. Underleaf writes the LaTeX for you, adds
+   `\usepackage{graphicx}` to the preamble if it's missing, and recompiles.
+
+Leave **Put it in a numbered figure** ticked for a figure with a caption and
+a label such as `fig:my-chart`, which you can cite with `\ref{fig:my-chart}`.
+Untick it to place just the image.
+
+The TeX engine only reads PNG, JPG and PDF images. Other formats are converted
+when you add them: SVG in your browser, and HEIC (iPhone photos), WebP, GIF,
+TIFF and BMP by the server. On a Mac that works out of the box; elsewhere,
+`python3 -m pip install -r requirements.txt` installs the converters. File
+names are tidied to letters, digits, `-` and `_`, because LaTeX trips over
+spaces and extra dots.
+
+The AI chat is told which images are in the folder, so you can also ask it to
+"add the coal plant chart under section 2".
+
 ### 5. Add your API key
 
 Click **Ask AI**, paste a key from your AI provider, and press **Save key**.
@@ -114,8 +139,12 @@ guesses wrong, or your key looks different, choose the provider from the menu
 next to the key field. Using the chat is billed to your own account with that
 provider.
 
-To change model, add a line such as `"gemini_model": "gemini-4-carbon"` or
-`"claude_model": "claude-sonnet-5-5"` to `config.json` and restart.
+**Choosing a model.** In the chat drawer, click the model name next to the
+provider's name. Underleaf asks your provider which models your key can use
+and lists them, newest first. Type to search, then click one, or press Enter
+for the first match. Your choice is remembered. You can also type a model
+name the list doesn't show and choose **Use this model name**. The chat
+edits through tools, so pick a model that supports tool calling.
 Environment variables work too: `GEMINI_API_KEY`, `GOOGLE_API_KEY` or
 `ANTHROPIC_API_KEY`.
 
@@ -192,6 +221,7 @@ PROVIDERS = {
         "available": lambda: myprovider_sdk is not None,
         "verify": verify_myprovider,
         "run": run_myprovider,
+        "models": models_myprovider,    # optional: fills the model picker
     },
 }
 ```
@@ -200,6 +230,9 @@ PROVIDERS = {
 looking up the model, and returns `(ok, message)`. `ok` is `True` if the key
 works, `False` if the provider rejected it, or `None` if it couldn't be
 checked.
+
+**`models_myprovider(key)`** is optional. It returns the models the key can
+use as a list of `{"id": ..., "name": ...}`, which fills the model picker.
 
 **`run_myprovider(cfg, msgs, system, emit)`** runs one chat turn:
 
@@ -229,8 +262,8 @@ Keys are saved as `"<id>_api_key"` in `config.json`, and the model override as
   shows the PDF; both load from cdnjs.
 - `assets/` — the leaf icon shown in the browser tab, in the sizes browsers ask for.
 - `examples/openai_compatible.py` — the OpenAI and DeepSeek provider example.
-- `requirements.txt` — Python packages for the chat.
-- `doc/` — your documents, one `.tex` file each. `build/<name>/` holds each
+- `requirements.txt` — Python packages for the chat and for converting images.
+- `doc/` — your documents, one `.tex` file each, with pictures in `doc/images/`. `build/<name>/` holds each
   document's compiler output and PDF, and `config.json` holds your API keys.
   None of these are shared.
 

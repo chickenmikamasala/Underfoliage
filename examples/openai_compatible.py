@@ -20,7 +20,7 @@ except ImportError:  # this provider stays off until `python3 -m pip install ope
 
 
 def make_openai_compatible(base_url=None, label="The provider"):
-    """Build the (verify, run) pair for an OpenAI-compatible API. base_url=None means OpenAI itself."""
+    """Build (verify, run, models) for an OpenAI-compatible API. base_url=None means OpenAI itself."""
 
     def verify(key, model):
         client = openai.OpenAI(api_key=key, base_url=base_url)
@@ -91,11 +91,15 @@ def make_openai_compatible(base_url=None, label="The provider"):
         except openai.APIConnectionError:
             emit({"type": "error", "message": f"Could not reach {label}. Check your internet connection."})
 
-    return verify, run
+    def models(key):
+        client = openai.OpenAI(api_key=key, base_url=base_url)
+        return sorted(({"id": m.id, "name": m.id} for m in client.models.list()), key=lambda d: d["id"])
+
+    return verify, run, models
 
 
-verify_openai, run_openai = make_openai_compatible(label="OpenAI")
-verify_deepseek, run_deepseek = make_openai_compatible("https://api.deepseek.com", label="DeepSeek")
+verify_openai, run_openai, models_openai = make_openai_compatible(label="OpenAI")
+verify_deepseek, run_deepseek, models_deepseek = make_openai_compatible("https://api.deepseek.com", label="DeepSeek")
 
 
 # ============================== PART 2: add inside PROVIDERS = { ... } ==============================
@@ -110,6 +114,7 @@ EXAMPLE_PROVIDER_ENTRIES = {
         "available": lambda: openai is not None,
         "verify": verify_openai,
         "run": run_openai,
+        "models": models_openai,                # lists the models for the picker
     },
     "deepseek": {
         "name": "DeepSeek",
@@ -120,5 +125,6 @@ EXAMPLE_PROVIDER_ENTRIES = {
         "available": lambda: openai is not None,
         "verify": verify_deepseek,
         "run": run_deepseek,
+        "models": models_deepseek,
     },
 }

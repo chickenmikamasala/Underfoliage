@@ -276,4 +276,4 @@ The engine is chosen in this order: `latexmk` with `pdflatex`, `tectonic`,
 and in this folder's `bin/`.
 
 
-Built by Chickenmikamasala, first published 18th November 2026. Built using Claude Code. 
+## Built by Chickenmikamasala, first published 18th November 2026. Built using Claude Code. 

@@ -274,3 +274,6 @@ The engine is chosen in this order: `latexmk` with `pdflatex`, `tectonic`,
 `pdflatex`, `xelatex`, `lualatex`. The server looks on your PATH, in
 `/Library/TeX/texbin`, `/opt/homebrew/bin`, `/usr/local/bin`, `~/.cargo/bin`,
 and in this folder's `bin/`.
+
+
+Built by Chickenmikamasala, first published 18th November 2026. Built using Claude Code. 

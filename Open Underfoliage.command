@@ -1,14 +1,14 @@
 #!/bin/bash
-# Double-click to start Underleaf, the local LaTeX editor, and open it in your browser.
+# Double-click to start Underfoliage, the local LaTeX editor, and open it in your browser.
 # Double-clicking again restarts it, so code changes take effect.
-# Keep the Terminal window open while you work; close it or press Ctrl+C to stop Underleaf.
+# Keep the Terminal window open while you work; close it or press Ctrl+C to stop Underfoliage.
 cd "$(dirname "$0")"
 PORT=8765
 
-# Stop an Underleaf server that is already running on this port, so the newest code is used.
+# Stop an Underfoliage server that is already running on this port, so the newest code is used.
 for pid in $(lsof -nP -tiTCP:$PORT -sTCP:LISTEN 2>/dev/null); do
   if ps -o command= -p "$pid" | grep -q "server.py"; then
-    echo "Restarting Underleaf..."
+    echo "Restarting Underfoliage..."
     kill "$pid"
   fi
 done
@@ -26,8 +26,8 @@ done
   open "http://127.0.0.1:$PORT"
 ) &
 
-echo "Underleaf is running at http://127.0.0.1:$PORT"
-echo "Keep this window open while you work. Close it or press Ctrl+C to stop Underleaf."
+echo "Underfoliage is running at http://127.0.0.1:$PORT"
+echo "Keep this window open while you work. Close it or press Ctrl+C to stop Underfoliage."
 echo
 # Run the server in this window, so closing the window stops it.
 exec python3 server.py "$PORT"

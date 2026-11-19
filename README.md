@@ -1,4 +1,4 @@
-# Underleaf — local LaTeX editor
+# Underfoliage — local LaTeX editor
 
 A split-pane LaTeX editor that runs on your own computer. Source on the left,
 the typeset PDF on the right, one **Compile** button (⌘↵ / Ctrl↵), a
@@ -77,7 +77,7 @@ python3 server.py
 
 Then open http://127.0.0.1:8765 in your browser. Keep the terminal open
 while you work; close it or press Ctrl+C to stop the editor. On a Mac you can
-instead double-click `Open Underleaf.command`.
+instead double-click `Open Underfoliage.command`.
 
 The first compile can take a minute while Tectonic downloads packages. Later
 compiles take about a second. A starter document is created in
@@ -85,7 +85,7 @@ compiles take about a second. A starter document is created in
 
 ### Your documents
 
-Click the document name next to **Underleaf** in the top-left corner to open the
+Click the document name next to **Underfoliage** in the top-left corner to open the
 document menu. One document is open at a time.
 
 - **New document**: type a name such as `chapter-2` and press **Create**. It
@@ -106,7 +106,7 @@ Click **Image** in the toolbar to add a picture where your cursor is.
 1. Drop an image onto the panel, or click **Choose a file…**. It is saved in
    `doc/images/`. Images already in that folder are listed too.
 2. Pick the image, type a caption if you want one, and choose a width.
-3. Click **Insert**. Underleaf writes the LaTeX for you, adds
+3. Click **Insert**. Underfoliage writes the LaTeX for you, adds
    `\usepackage{graphicx}` to the preamble if it's missing, and recompiles.
 
 Leave **Put it in a numbered figure** ticked for a figure with a caption and
@@ -140,7 +140,7 @@ next to the key field. Using the chat is billed to your own account with that
 provider.
 
 **Choosing a model.** In the chat drawer, click the model name next to the
-provider's name. Underleaf asks your provider which models your key can use
+provider's name. Underfoliage asks your provider which models your key can use
 and lists them, newest first. Type to search, then click one, or press Enter
 for the first match. Your choice is remembered. You can also type a model
 name the list doesn't show and choose **Use this model name**. The chat

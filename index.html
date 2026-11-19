@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Underleaf</title>
+<title>Underfoliage</title>
 <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png">
 <link rel="icon" type="image/png" sizes="256x256" href="/assets/favicon.png">
 <link rel="icon" href="/favicon.ico" sizes="any">
@@ -272,7 +272,7 @@ main { flex: 1 1 auto; min-height: 0; display: flex; }
 <body data-view="editor">
 <header>
   <div class="brand">
-    <h1>Underleaf</h1>
+    <h1>Underfoliage</h1>
     <div class="docmenu">
       <button type="button" class="docbtn" id="docBtn" aria-haspopup="true" aria-expanded="false" title="Open or create a document">
         <span id="docName">main.tex</span>
@@ -450,11 +450,11 @@ main { flex: 1 1 auto; min-height: 0; display: flex; }
   }
   // The page is read fresh from disk, but the server only learns new requests when it restarts.
   // A 404 from one of our own routes therefore means "the server is older than this page".
-  const RESTART_MSG = 'Underleaf was updated but the server is still running the old version. Double-click Open Underleaf.command to restart it, then reload this page.';
+  const RESTART_MSG = 'Underfoliage was updated but the server is still running the old version. Double-click Open Underfoliage.command to restart it, then reload this page.';
   function serverProblem(e) {
     if (e && e.status === 404) return RESTART_MSG;
     if (e && e.status) return 'The local server answered with an error (status ' + e.status + ').';
-    return 'Could not reach the local server. If Underleaf has stopped, double-click Open Underleaf.command to start it.';
+    return 'Could not reach the local server. If Underfoliage has stopped, double-click Open Underfoliage.command to start it.';
   }
   const isOldServer = (r, d) => r.status === 404 && d && d.error === 'not found';
 
@@ -984,7 +984,7 @@ main { flex: 1 1 auto; min-height: 0; display: flex; }
   async function showDoc(d) {
     currentDoc = d.name;
     $('docName').textContent = d.name; $('docBtn').title = d.path || d.name;
-    document.title = d.name.replace(/\.tex$/, '') + ' · Underleaf';
+    document.title = d.name.replace(/\.tex$/, '') + ' · Underfoliage';
     pendingDisk = null; hideBanner();
     cm.setValue(d.source); cm.clearHistory(); cm.setCursor(0, 0);
     lastSaved = d.source; lastMtime = d.mtime;

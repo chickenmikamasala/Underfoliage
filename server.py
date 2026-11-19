@@ -47,7 +47,7 @@ ASSETS_DIR = os.path.join(ROOT, "assets")
 ASSET_TYPES = {".png": "image/png", ".ico": "image/x-icon", ".svg": "image/svg+xml"}
 CONFIG = os.path.join(ROOT, "config.json")   # holds the API key; never commit it
 
-CHAT_SYSTEM = """You are the editing assistant inside Underleaf, a LaTeX editor. The user's open document
+CHAT_SYSTEM = """You are the editing assistant inside Underfoliage, a LaTeX editor. The user's open document
 is named below, followed by its complete current content. The user sees it in an editor beside
 this chat, and the PDF compiled from it.
 
@@ -80,8 +80,8 @@ STARTER = r"""\documentclass[11pt]{article}
 
 \section{Introduction}
 This document is compiled on your own machine. Edit the source on the left,
-press \textbf{Compile}, and the PDF appears here. Claude can read and edit
-this same file.
+press \textbf{Compile}, and the PDF appears here. Your AI chatbot can read
+and edit this same file.
 
 \section{Some mathematics}
 The quadratic formula gives the roots of $ax^2 + bx + c = 0$:
@@ -939,7 +939,7 @@ def tool_summary(name, inp):
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "Underleaf/1.0"
+    server_version = "Underfoliage/1.0"
 
     def log_message(self, fmt, *args):
         line = fmt % args
@@ -1170,14 +1170,14 @@ def main():
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8765
     name = current_name()  # creates doc/main.tex on first run
     eng = detect_engine()
-    print(f"Underleaf:    http://127.0.0.1:{port}", flush=True)
+    print(f"Underfoliage:    http://127.0.0.1:{port}", flush=True)
     print(f"Documents:    {DOC_DIR}  (open: {name})")
     print(f"Engine:       {eng[0] if eng else 'none found (install tectonic or MacTeX)'}", flush=True)
     try:
         srv = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     except OSError as e:
         if getattr(e, "errno", None) in (48, 98):  # address already in use
-            print(f"Underleaf is already running on http://127.0.0.1:{port} -- open that in your browser.",
+            print(f"Underfoliage is already running on http://127.0.0.1:{port} -- open that in your browser.",
                   flush=True)
             print(f"To run a second copy use another port:  python3 server.py {port + 1}", flush=True)
             sys.exit(0)

@@ -1,6 +1,6 @@
 # Underfoliage — local LaTeX editor
 
-A split-pane LaTeX editor that runs on your own computer. Source on the left,
+A split-pane LaTeX editor that runs on your own computer (Mac). Source on the left,
 the typeset PDF on the right, one **Compile** button (⌘↵ / Ctrl↵), a
 **Download PDF** button that saves the PDF named after your `\title`, and an
 **Ask AI** chat that edits the document for you using your own API key.

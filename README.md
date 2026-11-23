@@ -99,6 +99,11 @@ appears in the list. Put images and `.bib` files in `doc/` too, so
 `\includegraphics` and `\bibliography` can find them. Names can use letters,
 digits, `-` and `_`.
 
+To search the source, click in it and press Ctrl+F (⌘F on a Mac). Enter and
+Shift+Enter move between matches, which are also marked on the scrollbar.
+Ctrl+H (⌘⌥F on a Mac) finds and replaces. Esc closes the search and clears
+the highlights.
+
 ### Images
 
 Click **Image** in the toolbar to add a picture where your cursor is.
